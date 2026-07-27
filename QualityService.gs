@@ -115,9 +115,7 @@ function getAvailableQualityMonths() {
   rows.forEach(function(r) {
     var month = r[Q_COLS.REVIEW_MONTH];
     if (month) {
-      if (month instanceof Date) {
-        month = Utilities.formatDate(month, Session.getScriptTimeZone(), 'yyyy-MM');
-      }
+      month = normalizeQualityMonth(month);
       seen[month] = true;
     }
   });
@@ -129,12 +127,38 @@ function normalizeQualityMonth(val) {
   if (val instanceof Date) {
     return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM');
   }
-  return String(val).trim();
+  var strVal = String(val).trim();
+  // Handle ISO date strings from JSON parsing
+  if (strVal.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)) {
+    return strVal.substring(0, 7);
+  }
+  return strVal;
 }
 
 function normalizeLdap(val) {
   if (!val) return '';
   return String(val).trim().toLowerCase().split('@')[0];
+}
+
+
+function clearQualityCache() {
+  var cacheKey = 'quality_raw_v1';
+  var cache = CacheService.getScriptCache();
+
+  // Clear chunked data
+  var chunkCount = cache.get(cacheKey + '_chunks');
+  if (chunkCount) {
+    for (var c = 0; c < parseInt(chunkCount); c++) {
+      cache.remove(cacheKey + '_chunk_' + c);
+    }
+    cache.remove(cacheKey + '_chunks');
+  }
+
+  // Clear simple key just in case
+  cache.remove(cacheKey);
+
+  // Reload immediately
+  getRawQualityData();
 }
 
 // ── AGGREGATION ───────────────────────────────────────────────────────────
