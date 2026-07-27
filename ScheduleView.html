@@ -1179,9 +1179,7 @@ function buildAgentCard(agent) {
   var isMVL = (agent.shiftType === 'MVL');
   var isWorking = !isOff && !isVL && !isMVL;
 
-  var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + agent.ldap + '?sz=600&type=PLUS';
-  var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + agent.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
-  var avatarHtml = '<img src="' + momaP + '" onerror="this.onerror=null; this.src=\'' + momaF + '\';" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+  var avatarHtml = buildAvatarHtml(agent.ldap, "100%", "100%", "cover", "", "50%");
 
   var avClass = isOff ? 'sc-agent-avatar av-gray'
     : isVL || isMVL ? 'sc-agent-avatar av-blue'

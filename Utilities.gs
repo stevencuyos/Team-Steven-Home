@@ -558,7 +558,12 @@ function getCached(key) {
   try {
     var cache = CacheService.getScriptCache();
     var cached = cache.get(key);
-    return cached ? JSON.parse(cached) : null;
+    return cached ? JSON.parse(cached, function(k, v) {
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d*)?(?:[-+]\d{2}:?\d{2}|Z)?$/.test(v)) {
+        return new Date(v);
+      }
+      return v;
+    }) : null;
   } catch(e) {
     Logger.log('[Cache] Read error: ' + e.message);
     return null;

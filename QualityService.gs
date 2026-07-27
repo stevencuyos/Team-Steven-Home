@@ -59,6 +59,17 @@ var Q_TARGETS = {
   COMPLIANCE: 99.50
 };
 
+
+function getQualityCacheVersion() {
+  var cache = CacheService.getScriptCache();
+  var version = cache.get('quality_cache_version');
+  if (!version) {
+    version = new Date().getTime().toString();
+    cache.put('quality_cache_version', version, 21600); // 6 hours
+  }
+  return version;
+}
+
 // ── DATA LOADING ──────────────────────────────────────────────────────────
 
 function getRawQualityData() {
@@ -74,7 +85,14 @@ function getRawQualityData() {
         if (!chunk) { assembled = null; break; }
         assembled += chunk;
       }
-      if (assembled) return JSON.parse(assembled);
+      if (assembled) {
+        return JSON.parse(assembled, function(k, v) {
+          if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d*)?(?:[-+]\d{2}:?\d{2}|Z)?$/.test(v)) {
+            return new Date(v);
+          }
+          return v;
+        });
+      }
     }
   } catch(e) {
     Logger.log('[Quality] Cache read error: ' + e.message);
@@ -115,9 +133,7 @@ function getAvailableQualityMonths() {
   rows.forEach(function(r) {
     var month = r[Q_COLS.REVIEW_MONTH];
     if (month) {
-      if (month instanceof Date) {
-        month = Utilities.formatDate(month, Session.getScriptTimeZone(), 'yyyy-MM');
-      }
+      month = normalizeQualityMonth(month);
       seen[month] = true;
     }
   });
@@ -129,12 +145,51 @@ function normalizeQualityMonth(val) {
   if (val instanceof Date) {
     return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM');
   }
-  return String(val).trim();
+  var strVal = String(val).trim();
+
+  // Handle ISO date strings from JSON parsing (fallback in case reviver wasn't used)
+  if (strVal.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d*)?(?:[-+]\d{2}:?\d{2}|Z)?$/)) {
+    return Utilities.formatDate(new Date(strVal), Session.getScriptTimeZone(), 'yyyy-MM');
+  }
+
+  // Handle M/D/YYYY or MM/DD/YYYY strings from raw sheet data
+  var mdYyyyMatch = strVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdYyyyMatch) {
+    var month = mdYyyyMatch[1].length === 1 ? '0' + mdYyyyMatch[1] : mdYyyyMatch[1];
+    var year = mdYyyyMatch[3];
+    return year + '-' + month;
+  }
+
+  return strVal;
 }
 
 function normalizeLdap(val) {
   if (!val) return '';
   return String(val).trim().toLowerCase().split('@')[0];
+}
+
+
+function clearQualityCache() {
+  var cacheKey = 'quality_raw_v1';
+  var cache = CacheService.getScriptCache();
+
+  // Clear chunked data
+  var chunkCount = cache.get(cacheKey + '_chunks');
+  if (chunkCount) {
+    for (var c = 0; c < parseInt(chunkCount); c++) {
+      cache.remove(cacheKey + '_chunk_' + c);
+    }
+    cache.remove(cacheKey + '_chunks');
+  }
+
+  // Clear simple key just in case
+  cache.remove(cacheKey);
+
+  // Bump version to invalidate specific data caches
+  cache.put('quality_cache_version', new Date().getTime().toString(), 21600);
+
+  // Reload immediately
+  getRawQualityData();
 }
 
 // ── AGGREGATION ───────────────────────────────────────────────────────────
@@ -230,7 +285,7 @@ function aggregateTrends(rows) {
 // ── VIEW DATA FETCHERS ────────────────────────────────────────────────────
 
 function getMyQualityData(ldap, month) {
-  var cacheKey = 'quality_agent_' + normalizeLdap(ldap) + '_' + month;
+  var cacheKey = getQualityCacheVersion() + '_quality_agent_' + normalizeLdap(ldap) + '_' + month;
   var cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -296,7 +351,7 @@ function getMyQualityData(ldap, month) {
 }
 
 function getTeamQualityData(managerLdap, month) {
-  var cacheKey = 'quality_team_' + normalizeLdap(managerLdap) + '_' + month;
+  var cacheKey = getQualityCacheVersion() + '_quality_team_' + normalizeLdap(managerLdap) + '_' + month;
   var cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -351,7 +406,7 @@ function getTeamQualityData(managerLdap, month) {
 }
 
 function getAllTeamsQualityData(month) {
-  var cacheKey = 'quality_allteams_' + month;
+  var cacheKey = getQualityCacheVersion() + '_quality_allteams_' + month;
   var cached = getCached(cacheKey);
   if (cached) return cached;
 

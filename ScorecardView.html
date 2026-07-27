@@ -1,5 +1,4 @@
 <script>
-// ============================================================
 // ScorecardView — Enhanced Performance Scorecard
 // Mirrors the CSAT dashboard architecture
 // ============================================================
@@ -30,7 +29,7 @@ function renderScorecardView() {
       picker.innerHTML = months.map(function(m, i) {
         return '<option value="' + m + '"' + (i === 0 ? ' selected' : '') + '>' + m + '</option>';
       }).join('');
-      window._scSelectedMonth = months[0] || '';
+      APP.state.scSelectedMonth = months[0] || '';
       // Default tab based on role
       var role = APP.session ? APP.session.role : 'agent';
       switchScorecardTab((role === 'manager' || role === 'supervisor') ? 'team' : 'agent');
@@ -146,7 +145,7 @@ function switchScorecardAgent(ldap) {
   }
   if (status) status.textContent = '⟳ Loading…';
   renderScorecardLoading(panel);
-  var month = window._scSelectedMonth || '';
+  var month = APP.state.scSelectedMonth || '';
   google.script.run
     .withSuccessHandler(function(d) {
       panel.innerHTML = buildAgentScorecardHtml(d);
@@ -160,7 +159,7 @@ function switchScorecardAgent(ldap) {
 }
 
 function onScorecardMonthChange(month) {
-  window._scSelectedMonth = month;
+  APP.state.scSelectedMonth = month;
   ['agent', 'team'].forEach(function(t) {
     var p = document.getElementById('sc-panel-' + t);
     if (p) { p.dataset.loaded = ''; p.innerHTML = ''; }
@@ -184,7 +183,7 @@ function renderScorecardLoading(panel) {
 
 function loadScorecardPanel(id, panel) {
   renderScorecardLoading(panel);
-  var month = window._scSelectedMonth || '';
+  var month = APP.state.scSelectedMonth || '';
 
   if (id === 'agent') {
     var role = APP.session ? APP.session.role : 'agent';
@@ -217,13 +216,11 @@ function buildAgentScorecardHtml(d) {
   var blendedColor = scPtgColor(d.blendedPtg);
 
   // Avatar
-  var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + d.ldap + '?sz=600&type=PLUS';
-  var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + d.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
-  var avatarHtml = '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="width:100%;height:100%;object-fit:cover;display:block;">';
+  var avatarHtml = buildAvatarHtml(d.ldap, "100%", "100%", "cover", "block");
 
   var agentProfile = APP.session || {};
   var displayName = d.ldap;
-  try { if (window._profileCache && window._profileCache.ldap === d.ldap) displayName = window._profileCache.displayName || d.ldap; } catch(e) {}
+  try { if (APP.state.profileCache && APP.state.profileCache.ldap === d.ldap) displayName = APP.state.profileCache.displayName || d.ldap; } catch(e) {}
 
   return (
     // ── Hero Profile Card ──────────────────────────────────────
@@ -463,8 +460,7 @@ function buildTeamAgentTable(agents) {
   if (!agents || agents.length === 0) return '<div class="sc-empty" style="padding:20px;"><h3>No agent data.</h3></div>';
 
   var rows = agents.map(function(a, idx) {
-    var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=PLUS';
-    var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
+
     var borderColor = a.status === 'at_risk' ? '#c0392b' : a.status === 'monitor' ? '#b8860b' : '#01875f';
     var rowClass = idx % 2 === 0 ? 'sc-table-alt' : '';
     var ptgColor = scPtgColor(a.blendedPtg);
@@ -475,7 +471,7 @@ function buildTeamAgentTable(agents) {
       '<td>' +
         '<div style="display:flex; align-items:center; gap:8px;">' +
           '<div style="width:30px; height:30px; border-radius:50%; overflow:hidden; border:2px solid ' + borderColor + '; flex-shrink:0;">' +
-            '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="width:100%;height:100%;object-fit:cover;">' +
+            buildAvatarHtml(a.ldap, "100%", "100%", "cover") +
           '</div>' +
           '<span style="font-size:13px; font-weight:600;">' + escHtml(a.displayName || a.ldap) + '</span>' +
         '</div>' +
@@ -516,7 +512,7 @@ function buildScorecardCoachingSection(type, ldap, period) {
           '<div style="width:32px; height:32px; background:linear-gradient(135deg,#4285F4,#b388ff); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; box-shadow:0 2px 4px rgba(66,133,244,0.2);">✨</div>' +
           '<div>' +
             '<div style="font-size:14px; font-weight:600; color:var(--text-primary);">' + (type === 'team' ? 'Team AI Coaching (SMART)' : 'AI Performance Insights') + '</div>' +
-            '<div style="font-size:11px; color:var(--text-secondary);">Powered by Groq · ' + (period || '') + '</div>' +
+            '<div style="font-size:11px; color:var(--text-secondary);">Powered by Gemini · ' + (period || '') + '</div>' +
           '</div>' +
         '</div>' +
         '<button onclick="loadScorecardCoaching(\'' + type + '\',\'' + escHtml(ldap || '') + '\',\'' + escHtml(period || '') + '\')" ' +
