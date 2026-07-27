@@ -679,7 +679,6 @@
         <label class="form-label">Details</label>
         <textarea id="feedback-text" class="form-control" rows="4" placeholder="Tell us what's on your mind..."></textarea>
       </div>
-      <!-- FIX #9: Wired to backend via clientSubmitFeedback instead of fake setTimeout -->
       <button class="btn btn-primary btn-full" onclick="submitFeedbackAction()">Send to Managers</button>
     </div>
   </div>
@@ -720,6 +719,21 @@
      CORE APP JAVASCRIPT
 ═══════════════════════════════════════════════ -->
 <script>
+// Shared Avatar Helper
+function buildAvatarHtml(ldap, width, height, objectFit, display, borderRadius, border) {
+  var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + ldap + '?sz=600&type=PLUS';
+  var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
+  var style = '';
+  if (width) style += 'width:' + width + ';';
+  if (height) style += 'height:' + height + ';';
+  if (objectFit) style += 'object-fit:' + objectFit + ';';
+  if (display) style += 'display:' + display + ';';
+  if (borderRadius) style += 'border-radius:' + borderRadius + ';';
+  if (border) style += 'border:' + border + ';';
+
+  return '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="' + style + '">';
+}
+
 // ------------------------------------------------------------
 // DARK MODE
 // ------------------------------------------------------------
@@ -741,6 +755,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ── State ──────────────────────────────────────────────────
 var APP = {
+  state: {},
   session: null,
   currentView: 'home',
   notifOpen: false,
@@ -748,7 +763,6 @@ var APP = {
   unreadCount: 0
 };
 
-// FIX #6: VIEW_TITLES now complete — 'store' and 'help' added upfront,
 // late assignment at bottom of file removed.
 var VIEW_TITLES = {
   'home':          'Home',
@@ -953,7 +967,7 @@ async function loadDashboard(forceRefresh = false) {
 
 function applyDashboardData(data) {
   if (data.tasks) CACHE.set('home_feed', data.tasks, 300);
-  if (data.profile) window._profileCache = data.profile;
+  if (data.profile) APP.state.profileCache = data.profile;
   if (data.quality) {
     var month = data.quality.month;
     var ldap = data.quality.ldap;
@@ -998,12 +1012,9 @@ function loadSession() {
     .getSessionInfo();
 }
 
-// FIX #1: Removed duplicate var declarations for momaPrimary / momaFallback.
 // Both sidebar and header avatars now built from one shared avatarHtml variable.
 function applySession(session) {
-  var momaPrimary = 'https://moma-teams-photos.corp.google.com/photos/' + session.ldap + '?sz=600&type=PLUS';
-  var momaFallback = 'https://moma-teams-photos.corp.google.com/photos/' + session.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
-  var avatarHtml = '<img src="' + momaPrimary + '" onerror="this.onerror=null; this.src=\'' + momaFallback + '\';" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+  var avatarHtml = buildAvatarHtml(session.ldap, "100%", "100%", "cover", "", "50%");
 
   var sidebarAvatar = document.getElementById('sidebar-avatar-initial');
   sidebarAvatar.innerHTML = avatarHtml;
@@ -1046,7 +1057,7 @@ function navigate(view, data) {
 
   // Invalidate leaderboard cache when navigating away from task-detail
   if (APP.currentView === 'task-detail' && view !== 'task-detail') {
-    window._leaderboardCache = null;
+    APP.state.leaderboardCache = null;
   }
   if (view === 'task-detail') APP._prevView = APP.currentView;
   APP.currentView = view;
@@ -1434,7 +1445,6 @@ function scrollToSection(id) {
      AGENT APP
 ═══════════════════════════════════════════════ -->
 <script>
-// FIX #5: All placeholder stub functions removed. Real implementations below are
 // the only definitions, eliminating the silent override in the original.
 
 function renderHome() {
@@ -1450,12 +1460,12 @@ function renderHome() {
       CACHE.set('home_feed', data, 300); // 5 minutes
       document.getElementById('view-home').innerHTML = buildHomeHtml(data);
       // Pre-warm browse cache from home data so Browse is instant
-      if (!window._browseTaskCache) {
+      if (!APP.state.browseTaskCache) {
         var all = [], seen = {};
         ['featured','forYou','newThisWeek','closingSoon','quickWins','completedTasks'].forEach(function(k) {
           (data[k] || []).forEach(function(t) { if (!seen[t.id]) { seen[t.id] = true; all.push(t); } });
         });
-        window._browseTaskCache = all;
+        APP.state.browseTaskCache = all;
         CACHE.set('browse_all', all, 300);
       }
     })
@@ -1550,16 +1560,15 @@ function buildScrollSection(title, tasks, viewAll) {
     '<div class="scroll-row">' + tasks.map(renderTaskCardHtml).join('') + '</div></div>';
 }
 
-// FIX #4: Browse context stored in window._browseData so sort dropdown
 // changes preserve the active filter and category.
 function renderBrowse(data) {
   var viewEl = document.getElementById('view-browse');
-  data = data || window._browseData || {};
-  window._browseData = data;
+  data = data || APP.state.browseData || {};
+  APP.state.browseData = data;
 
   // If we already have tasks cached, filter instantly — no spinner, no server call
-  if (window._browseTaskCache && !data.searchQuery && !data.forceRefresh) {
-    viewEl.innerHTML = buildBrowseHtml(window._browseTaskCache, 'All Tasks', data);
+  if (APP.state.browseTaskCache && !data.searchQuery && !data.forceRefresh) {
+    viewEl.innerHTML = buildBrowseHtml(APP.state.browseTaskCache, 'All Tasks', data);
     return;
   }
 
@@ -1567,7 +1576,7 @@ function renderBrowse(data) {
     setLoading('browse', 'Searching...');
     google.script.run
       .withSuccessHandler(function(tasks) {
-        window._browseTaskCache = null; // don't cache search results
+        APP.state.browseTaskCache = null; // don't cache search results
         viewEl.innerHTML = buildBrowseHtml(tasks, 'Results for "' + escHtml(data.searchQuery) + '"', data);
       })
       .withFailureHandler(function() { showToast('Search failed.', 'error'); })
@@ -1580,7 +1589,7 @@ function renderBrowse(data) {
         ['featured','forYou','newThisWeek','closingSoon','quickWins','completedTasks'].forEach(function(k) {
           (feedData[k] || []).forEach(function(t) { if (!seen[t.id]) { seen[t.id] = true; all.push(t); } });
         });
-        window._browseTaskCache = all; // cache for instant filter switching
+        APP.state.browseTaskCache = all; // cache for instant filter switching
         viewEl.innerHTML = buildBrowseHtml(all, 'All Tasks', data);
       })
       .withFailureHandler(function() { showToast('Could not load tasks.', 'error'); })
@@ -1598,7 +1607,7 @@ function buildBrowseHtml(tasks, title, data) {
   if (activeFilter === 'completed') filtered = filtered.filter(function(t) { return t.agentStatus === 'Completed'; });
 
   var sortSelect = document.getElementById('task-sort-dropdown');
-  var sortBy = sortSelect ? sortSelect.value : (window._browseData && window._browseData.sort ? window._browseData.sort : 'deadline');
+  var sortBy = sortSelect ? sortSelect.value : (APP.state.browseData && APP.state.browseData.sort ? APP.state.browseData.sort : 'deadline');
 
   filtered.sort(function(a, b) {
     if (sortBy === 'deadline') {
@@ -1611,21 +1620,20 @@ function buildBrowseHtml(tasks, title, data) {
     return 0;
   });
 
-  // FIX #4: Sort dropdown calls renderBrowse() with no args; window._browseData
   // provides the preserved context so filter/category are not lost.
   var filterChips = ['all','available','inprogress','completed'].map(function(f) {
     var labels = {all:'All', available:'Available', inprogress:'In Progress', completed:'Completed'};
     return '<button class="btn btn-sm ' + (f === activeFilter ? 'btn-primary' : 'btn-secondary') + '" ' +
-      'onclick="window._browseData=Object.assign({},window._browseData,{filter:\'' + f + '\'});renderBrowse()">' + labels[f] + '</button>';
+      'onclick="APP.state.browseData=Object.assign({},APP.state.browseData,{filter:\'' + f + '\'});renderBrowse()">' + labels[f] + '</button>';
   }).join('');
 
   var categoryChip = activeCategory
-    ? '<button class="btn btn-sm btn-outline" onclick="window._browseData={};window._browseTaskCache=null;renderBrowse()">✕ ' + escHtml(activeCategory) + '</button>'
+    ? '<button class="btn btn-sm btn-outline" onclick="APP.state.browseData={};APP.state.browseTaskCache=null;renderBrowse()">✕ ' + escHtml(activeCategory) + '</button>'
     : '';
 
   var filterBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:16px;">' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;">' + filterChips + categoryChip + '</div>' +
-    '<select id="task-sort-dropdown" onchange="window._browseData=Object.assign({},window._browseData,{sort:this.value});renderBrowse()" style="background:var(--surface-2);color:var(--text-primary);border:1px solid var(--border);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:\'Google Sans\';outline:none;">' +
+    '<select id="task-sort-dropdown" onchange="APP.state.browseData=Object.assign({},APP.state.browseData,{sort:this.value});renderBrowse()" style="background:var(--surface-2);color:var(--text-primary);border:1px solid var(--border);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:\'Google Sans\';outline:none;">' +
       '<option value="deadline"' + (sortBy==='deadline'?' selected':'') + '>Sort by Deadline</option>' +
       '<option value="points"' + (sortBy==='points'?' selected':'') + '>Sort Highest Points</option>' +
       '<option value="newest"' + (sortBy==='newest'?' selected':'') + '>Sort by Newest</option>' +
@@ -1640,7 +1648,7 @@ function buildBrowseHtml(tasks, title, data) {
 function renderLeaderboard() {
   var cached = CACHE.get('leaderboard');
   if (cached) {
-    window._leaderboardCache = cached;
+    APP.state.leaderboardCache = cached;
     document.getElementById('view-leaderboard').innerHTML = buildLeaderboardHtml(cached);
     var me = cached.find(function(e) { return e.isMe; });
     if (me && me.rank <= 3) triggerConfetti();
@@ -1650,7 +1658,7 @@ function renderLeaderboard() {
   google.script.run
     .withSuccessHandler(function(data) {
       CACHE.set('leaderboard', data, 180); // 3 minutes
-      window._leaderboardCache = data;
+      APP.state.leaderboardCache = data;
       document.getElementById('view-leaderboard').innerHTML = buildLeaderboardHtml(data);
       var me = data.find(function(e) { return e.isMe; });
       if (me && me.rank <= 3) triggerConfetti();
@@ -1688,12 +1696,10 @@ function buildLeaderboardHtml(entries) {
   podiumOrder.forEach(function(e, i) {
     if (!e) return;
     var m = podiumMeta[i];
-    var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + e.ldap + '?sz=600&type=PLUS';
-    var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + e.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
     podiumHtml += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer" onclick="navigate(\'profile\',{ldap:\'' + escHtml(e.ldap) + '\'})">' +
       '<div style="position:relative;margin-bottom:8px">' +
         (m.crown ? '<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:22px;z-index:1">👑</div>' : '') +
-        '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="width:' + m.size + ';height:' + m.size + ';border-radius:50%;object-fit:cover;border:3px solid ' + m.color + ';display:block">' +
+        buildAvatarHtml(e.ldap, m.size, m.size, "cover", "block", "50%", "3px solid " + m.color) +
       '</div>' +
       '<div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:2px">' + escHtml(e.displayName) + '</div>' +
       '<div style="font-size:12px;font-weight:700;color:' + m.color + ';margin-bottom:8px">' + e.monthlyPoints + ' pts</div>' +
@@ -1718,15 +1724,13 @@ function buildLeaderboardHtml(entries) {
   var rowsHtml = entries.map(function(e) {
     var rankEmoji = e.rank === 1 ? '🥇' : e.rank === 2 ? '🥈' : e.rank === 3 ? '🥉' : e.rank;
     var rankColor = e.rank === 1 ? '#f9ab00' : e.rank === 2 ? '#9aa0a6' : e.rank === 3 ? '#c0763a' : 'var(--text-hint)';
-    var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + e.ldap + '?sz=600&type=PLUS';
-    var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + e.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
     var streakColor = e.currentStreak >= 7 ? 'var(--play-red)' : e.currentStreak >= 3 ? 'var(--play-yellow)' : 'var(--text-secondary)';
 
     return '<div class="lb-row ' + (e.isMe ? 'me' : '') + '" style="' + cols + '" onclick="navigate(\'profile\',{ldap:\'' + escHtml(e.ldap) + '\'})">' +
       '<div style="font-size:' + (e.rank <= 3 ? '20px' : '15px') + ';font-weight:700;color:' + rankColor + ';text-align:center;display:flex;align-items:center;justify-content:center">' + rankEmoji + '</div>' +
       '<div class="lb-agent">' +
         '<div class="lb-avatar" style="padding:0;overflow:hidden;width:' + (e.rank <= 3 ? '40px' : '34px') + ';height:' + (e.rank <= 3 ? '40px' : '34px') + ';border:2px solid ' + (e.rank <= 3 ? rankColor : 'transparent') + '">' +
-          '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">' +
+          buildAvatarHtml(e.ldap, "100%", "100%", "cover", "", "50%") +
         '</div>' +
         '<div>' +
           '<div class="lb-name">' + escHtml(e.displayName) + (e.isMe ? ' <span style="font-size:11px;color:var(--play-green);font-weight:500">(you)</span>' : '') + '</div>' +
@@ -1755,8 +1759,8 @@ function renderProfile(data) {
 
   // Use cache for own profile, not for other agents' profiles
   if (!data || !data.ldap) {
-    if (window._profileCache) {
-      buildProfilePage(window._profileCache);
+    if (APP.state.profileCache) {
+      buildProfilePage(APP.state.profileCache);
       return;
     }
   }
@@ -1770,7 +1774,7 @@ function renderProfile(data) {
   } else {
     google.script.run
       .withSuccessHandler(function(profile) {
-        window._profileCache = profile; // cache own profile
+        APP.state.profileCache = profile; // cache own profile
         buildProfilePage(profile);
       })
       .withFailureHandler(function() { showToast('Could not load profile.', 'error'); })
@@ -1781,9 +1785,7 @@ function renderProfile(data) {
 function buildProfilePage(profile, targetId) {
   targetId = targetId || 'view-profile';
     if (!profile) { document.getElementById(targetId).innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><h3>Profile not found</h3><p>This agent is not in the system yet.</p></div>'; return; }
-  var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + profile.ldap + '?sz=600&type=PLUS';
-  var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + profile.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
-  var avatarHtml = '<img src="' + momaP + '" onerror="this.onerror=null; this.src=\'' + momaF + '\';" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+  var avatarHtml = buildAvatarHtml(profile.ldap, "100%", "100%", "cover", "", "50%");
 
   var pts = profile.allTimePoints || 0;
   var nextTier = 'Max Rank', targetPts = pts, basePts = pts;
@@ -1922,9 +1924,7 @@ function buildTaskDetailHtml(task) {
   if (task.completionHistory && task.completionHistory.length > 0) {
     historyHtml = '<div class="card mb-16"><div class="card-title">Completed By</div>' +
       task.completionHistory.map(function(c) {
-        var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + c.ldap + '?sz=600&type=PLUS';
-        var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + c.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
-        var imgHtml = '<img src="' + momaP + '" onerror="this.onerror=null; this.src=\'' + momaF + '\';" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+        var imgHtml = buildAvatarHtml(c.ldap, "100%", "100%", "cover", "", "50%");
         return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">' +
           '<div class="lb-avatar" style="width:30px;height:30px;padding:0;overflow:hidden">' + imgHtml + '</div>' +
           '<div style="flex:1"><div style="font-size:13px;font-weight:600">' + escHtml(c.displayName) + '</div>' +
@@ -1997,8 +1997,8 @@ function doClaim(taskId) {
         CACHE.bust('browse_all');
         CACHE.bust('notifications');
         ClientCache.clear('dashboard_data');
-        window._browseTaskCache = null; 
-        window._profileCache = null; 
+        APP.state.browseTaskCache = null;
+        APP.state.profileCache = null;
         loadNotifications(); 
       } else {
         showToast(result.error||'Could not claim task.', 'error'); 
@@ -2036,9 +2036,9 @@ function doComplete(taskId) {
         CACHE.bust('leaderboard');
         CACHE.bust('notifications');
         ClientCache.clear('dashboard_data');
-        window._browseTaskCache = null; 
-        window._profileCache = null;
-        window._leaderboardCache = null;
+        APP.state.browseTaskCache = null;
+        APP.state.profileCache = null;
+        APP.state.leaderboardCache = null;
         // Show exact points once the server finishes calculating
         var msg = '+' + result.totalPoints + ' pts awarded!';
         if (result.isFirst) msg += ' 🥇 First to complete!';
@@ -2057,7 +2057,6 @@ function doComplete(taskId) {
     .clientCompleteTask(taskId);
 }
 
-// FIX #2: doDeleteTask no longer calls the nonexistent getInitialData()
 // and no longer overwrites the global APP object. Just re-renders the manager view.
 function doDeleteTask(taskId) {
   if (!confirm('🚨 Are you sure you want to delete this task? This action cannot be undone.')) return;
@@ -2092,8 +2091,8 @@ function doAcknowledge(taskId) {
       if (result.success) { 
         CACHE.bust('home_feed');
         CACHE.bust('notifications');
-        window._browseTaskCache = null;
-        window._profileCache = null; 
+        APP.state.browseTaskCache = null;
+        APP.state.profileCache = null;
         showToast('+' + result.points + ' pts for acknowledging!', 'success'); 
         loadNotifications(); 
       } else {
@@ -2188,7 +2187,6 @@ function getBadgeEmoji(badgeId) {
   return {'FIRST_BLOOD':'🩸','SPEED_DEMON':'⚡','PERFECTIONIST':'💎','KUDOS_KING':'👑','CLEAN_SLATE':'🧹','OVERACHIEVER':'🚀','STREAK_MASTER':'🔥','ACKNOWLEDGED':'👁️','VETERAN':'🎖️','LEGEND':'🌟','COMEBACK_KID':'💪'}[badgeId] || '🏅';
 }
 
-// FIX #9: Feedback modal now wired to backend via clientSubmitFeedback.
 // Falls back gracefully if the backend function doesn't exist yet.
 function openFeedbackModal() {
   if (typeof playPop === 'function') playPop();
@@ -2226,11 +2224,9 @@ function submitFeedbackAction() {
      MANAGER APP
 ═══════════════════════════════════════════════ -->
 <script>
-// FIX #8: Chart instances unified on window.* only.
 // Removed the conflicting var chartAdherence / var chartPerformers declarations
 // that were separate references from window.chartAdherence / window.chartPerformers.
 
-// FIX #3: loadTeamAnalytics() removed entirely — it called the undefined switchView()
 // and was never invoked from anywhere in the app. renderAnalytics() handles this view.
 
 function renderTaskManager() {
@@ -2238,7 +2234,7 @@ function renderTaskManager() {
     document.getElementById('view-task-manager').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔒</div><h3>Access Denied</h3></div>';
     return;
   }
-  if (!window._tmFilter) window._tmFilter = 'all';
+  if (!APP.state.tmFilter) APP.state.tmFilter = 'all';
   setLoading('task-manager', 'Loading tasks...');
   google.script.run
     .withSuccessHandler(function(tasks) { buildTaskManagerHtml(tasks || []); })
@@ -2262,20 +2258,19 @@ m.innerHTML = buildCreateTaskModal();
 document.body.appendChild(m);
     return;
   }
-  var activeFilter = window._tmFilter || 'all';
+  var activeFilter = APP.state.tmFilter || 'all';
   var counts = {all: tasks.length};
   ['Published','Claimed','Completed','Expired'].forEach(function(s) { counts[s.toLowerCase()] = tasks.filter(function(t) { return t.status === s; }).length; });
   var filtered = activeFilter !== 'all' ? tasks.filter(function(t) { return t.status.toLowerCase() === activeFilter; }) : tasks;
   var filterBar = '<div class="flex gap-8 mb-16" style="flex-wrap:wrap">' +
     ['all','published','claimed','completed','expired'].map(function(f) {
       var label = f.charAt(0).toUpperCase() + f.slice(1);
-      return '<button class="btn btn-sm ' + (f === activeFilter ? 'btn-primary' : 'btn-secondary') + '" onclick="window._tmFilter=\'' + f + '\';renderTaskManager()">' + label + ' <span style="opacity:.7">(' + (counts[f]||0) + ')</span></button>';
+      return '<button class="btn btn-sm ' + (f === activeFilter ? 'btn-primary' : 'btn-secondary') + '" onclick="APP.state.tmFilter=\'' + f + '\';renderTaskManager()">' + label + ' <span style="opacity:.7">(' + (counts[f]||0) + ')</span></button>';
     }).join('') + '</div>';
 
-  // FIX #10: task IDs passed via data attributes and retrieved in handlers
   // to prevent quote-injection in onclick strings.
-  window._tmTasks = {};
-  tasks.forEach(function(t) { window._tmTasks[t.id] = t; });
+  APP.state.tmTasks = {};
+  tasks.forEach(function(t) { APP.state.tmTasks[t.id] = t; });
 
   var tableHtml = '<div class="leaderboard-table" style="overflow-x:auto;"><div class="lb-header" style="grid-template-columns:1fr 100px 90px 80px 70px 80px 240px;min-width:950px;">' +
     '<div>Task</div><div>Category</div><div>Deadline</div><div>Points</div><div>Claims</div><div>Status</div><div>Actions</div></div>' +
@@ -2363,7 +2358,7 @@ function toggleTargetValue() {
 function openCreateTaskModal() { openModal('modal-create-task'); toggleTargetValue(); }
 
 function openEditTaskModal(taskId) {
-  var task = window._tmTasks[taskId];
+  var task = APP.state.tmTasks[taskId];
   if (!task) { showToast('Could not load task data.', 'error'); return; }
   document.getElementById('edit-task-body').innerHTML = buildTaskFormHtml('edit', task);
   openModal('modal-edit-task'); toggleTargetValue();
@@ -2627,9 +2622,7 @@ function buildAnalyticsHtml(data) {
   var tableHtml = '<div class="leaderboard-table"><div class="lb-header" style="grid-template-columns:1fr 80px 80px 70px 80px 80px 80px 120px">' +
     '<div>Agent</div><div>Tier</div><div>Mthly Pts</div><div>Streak</div><div>Tasks</div><div>Kudos</div><div>Demerits</div><div>Last Active</div></div>' +
     agents.slice().sort(function(a,b){return b.monthlyPoints - a.monthlyPoints;}).map(function(a) {
-      var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=PLUS';
-      var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
-      var avatarHtml = '<img src="' + momaP + '" onerror="this.onerror=null; this.src=\'' + momaF + '\';" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+      var avatarHtml = buildAvatarHtml(a.ldap, "100%", "100%", "cover", "", "50%");
       var streakCol = a.currentStreak >= 7 ? 'var(--play-red)' : a.currentStreak >= 3 ? 'var(--play-yellow)' : 'var(--text-secondary)';
       return '<div class="lb-row" style="grid-template-columns:1fr 80px 80px 70px 80px 80px 80px 120px" onclick="navigate(\'agent-lookup\',{ldap:\'' + escHtml(a.ldap) + '\'})">' +
         '<div class="lb-agent"><div class="lb-avatar" style="width:34px;height:34px;padding:0;overflow:hidden;border:2px solid var(--border)">' + avatarHtml + '</div><div><div class="lb-name">' + escHtml(a.displayName) + '</div><div class="lb-ldap">' + escHtml(a.ldap) + '</div></div></div>' +
@@ -2649,7 +2642,6 @@ function buildAnalyticsHtml(data) {
 
   window.currentAnalyticsAgents = agents;
 
-  // FIX #8: Using window.chartAdherence / window.chartPerformers consistently.
   setTimeout(function() {
     var adherenceEl = document.getElementById('adherenceChart');
     var performerEl = document.getElementById('performerChart');

@@ -558,6 +558,16 @@ function clientGetAvailableCsatMonths() {
   }, this, 'clientGetAvailableCsatMonths');
 }
 
+
+function clientRunQualityAggregation() {
+  return executeWithErrorHandling(function() {
+    requireManager();
+    clearQualityCache();
+    auditLog('QUALITY_AGGREGATION_RUN', {}, getCurrentLdap());
+    return { success: true };
+  }, this, 'clientRunQualityAggregation');
+}
+
 function clientRunCsatAggregation() {
   return executeWithErrorHandling(function() {
     requireManager();
