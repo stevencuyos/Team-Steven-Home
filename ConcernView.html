@@ -134,8 +134,8 @@ function buildManageConcernModal() {
 }
 
 function loadConcernDashboard(filter) {
-  filter = filter || window._conFilter || 'New';
-  window._conFilter = filter;
+  filter = filter || APP.state.conFilter || 'New';
+  APP.state.conFilter = filter;
 
   var content = document.getElementById('con-dashboard-content');
   if (!content) return;
@@ -143,7 +143,7 @@ function loadConcernDashboard(filter) {
 
   google.script.run
     .withSuccessHandler(function(concerns) {
-      window._allConcerns = concerns;
+      APP.state.allConcerns = concerns;
       renderConcernFilterBar(concerns, filter);
 
       var filtered = concerns;
@@ -210,7 +210,7 @@ function buildConcernTable(concerns) {
 }
 
 function openManageConcern(id) {
-  var concern = (window._allConcerns || []).find(function(c) { return c.ID === id; });
+  var concern = (APP.state.allConcerns || []).find(function(c) { return c.ID === id; });
   if (!concern) return;
 
   var body = document.getElementById('manage-concern-body');

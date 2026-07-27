@@ -54,6 +54,49 @@ function callGemini(prompt) {
   return candidate.content.parts[0].text;
 }
 
+
+// ── COACHING CACHE ───────────────────────────────────────────
+function getCoachingCacheSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('CoachingCache');
+  if (!sheet) {
+    sheet = ss.insertSheet('CoachingCache');
+    sheet.appendRow(['CacheKey', 'Timestamp', 'Payload']);
+    sheet.getRange("A1:C1").setFontWeight("bold").setBackground("#f3f3f3");
+    sheet.setFrozenRows(1);
+    sheet.hideSheet(); // Keep it hidden from users
+  }
+  return sheet;
+}
+
+function getCoachingFromCache(cacheKey) {
+  var sheet = getCoachingCacheSheet();
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === cacheKey) {
+      return data[i][2]; // Return payload
+    }
+  }
+  return null;
+}
+
+function saveCoachingToCache(cacheKey, payload) {
+  var sheet = getCoachingCacheSheet();
+  var data = sheet.getDataRange().getValues();
+  var timestamp = new Date();
+
+  // Check if it exists to update
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === cacheKey) {
+      sheet.getRange(i + 1, 2, 1, 2).setValues([[timestamp, payload]]);
+      return;
+    }
+  }
+
+  // Or append new
+  sheet.appendRow([cacheKey, timestamp, payload]);
+}
+
 // ── AGENT COACHING ───────────────────────────────────────────
 function getAgentCsatCoaching(ldap, month) {
   var data = getMyCsatData(ldap, month);
@@ -94,7 +137,17 @@ function getAgentCsatCoaching(ldap, month) {
     'Each section should be 3-5 sentences or bullet points — enough to feel like genuine, individualized coaching rather than a template filled with their name.';
 
   try {
-    var response = callGemini(prompt);
+    var cacheKey = 'agent_' + ldap + '_' + month;
+    var cachedResponse = getCoachingFromCache(cacheKey);
+    var response;
+
+    if (cachedResponse) {
+      response = cachedResponse;
+    } else {
+      response = callGemini(prompt);
+      saveCoachingToCache(cacheKey, response);
+    }
+
     return { success: true, coaching: response, agentName: data.displayName || ldap, month: data.month };
   } catch(e) {
     return { success: false, error: e.message };
@@ -146,7 +199,17 @@ function getTeamCsatCoaching(managerLdap, month) {
     'Each section should be 3-6 bullet points with enough detail to act on immediately.';
 
   try {
-    var response = callGemini(prompt);
+    var cacheKey = 'team_' + managerLdap + '_' + month;
+    var cachedResponse = getCoachingFromCache(cacheKey);
+    var response;
+
+    if (cachedResponse) {
+      response = cachedResponse;
+    } else {
+      response = callGemini(prompt);
+      saveCoachingToCache(cacheKey, response);
+    }
+
     return { success: true, coaching: response, month: data.month };
   } catch(e) {
     return { success: false, error: e.message };

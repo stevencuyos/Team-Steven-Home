@@ -526,7 +526,7 @@ function clientGetScorecardCoaching(ldap, monthLabel) {
     }
 
     try {
-      var response = callGroq(prompt);
+      var response = callGemini(prompt);
       return { success: true, coaching: response, displayName: displayName, period: monthLabel, isSmart: isMgmt };
     } catch(e) {
       return { success: false, error: e.message };
@@ -578,7 +578,7 @@ function clientGetTeamScorecardCoaching(monthLabel) {
       'Keep each section to 3-5 bullet points.';
 
     try {
-      var response = callGroq(prompt);
+      var response = callGemini(prompt);
       return { success: true, coaching: response, period: monthLabel };
     } catch(e) {
       return { success: false, error: e.message };
