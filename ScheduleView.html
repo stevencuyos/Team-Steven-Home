@@ -1,0 +1,1314 @@
+<script>
+// ═══════════════════════════════════════════════
+// SCHEDULE VIEW — Redesigned
+// ═══════════════════════════════════════════════
+
+function renderScheduleView() {
+  var el = document.getElementById('view-schedule');
+  el.innerHTML = buildScheduleShell();
+  initScheduleView();
+}
+
+function buildScheduleShell() {
+  return `
+  <style>
+    /* ── Design tokens ── */
+    #view-schedule {
+      --sc-blue:#1a73e8;
+      --sc-blue-light:rgba(26,115,232,.10);
+      --sc-blue-mid:rgba(26,115,232,.18);
+      --sc-blue-dark:#1558b0;
+      --sc-green:#1e8e3e;
+      --sc-green-light:rgba(30,142,62,.10);
+      --sc-green-mid:rgba(30,142,62,.18);
+      --sc-green-dark:#137333;
+      --sc-red:#d93025;
+      --sc-red-light:rgba(217,48,37,.10);
+      --sc-yellow:#f29900;
+      --sc-yellow-light:rgba(242,153,0,.10);
+      --sc-purple:#7c4dff;
+      --sc-purple-light:rgba(124,77,255,.10);
+      --sc-purple-mid:rgba(124,77,255,.18);
+      --sc-gray-50:#f8f9fa;
+      --sc-gray-100:#f1f3f4;
+      --sc-gray-200:#e8eaed;
+      --sc-gray-300:#dadce0;
+      --sc-gray-500:#9aa0a6;
+      --sc-gray-600:#80868b;
+      --sc-gray-700:#5f6368;
+      --sc-gray-900:#202124;
+      --sc-font:'Google Sans','DM Sans',sans-serif;
+      --sc-radius-sm:8px;
+      --sc-radius-md:12px;
+      --sc-radius-lg:16px;
+      --sc-radius-pill:999px;
+      --sc-shadow:0 1px 4px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+      --sc-shadow-md:0 4px 16px rgba(0,0,0,.10),0 2px 4px rgba(0,0,0,.05);
+      font-family:var(--sc-font);
+      color:var(--sc-gray-900);
+    }
+
+    /* Dark mode */
+    body.dark-mode #view-schedule {
+      --sc-blue:#8ab4f8;
+      --sc-blue-light:rgba(138,180,248,.12);
+      --sc-blue-mid:rgba(138,180,248,.20);
+      --sc-blue-dark:#aecbfa;
+      --sc-green:#81c995;
+      --sc-green-light:rgba(129,201,149,.12);
+      --sc-green-mid:rgba(129,201,149,.20);
+      --sc-green-dark:#81c995;
+      --sc-red:#f28b82;
+      --sc-red-light:rgba(242,139,130,.12);
+      --sc-yellow:#fde293;
+      --sc-yellow-light:rgba(253,226,147,.12);
+      --sc-purple:#d7aefb;
+      --sc-purple-light:rgba(215,174,251,.12);
+      --sc-purple-mid:rgba(215,174,251,.20);
+      --sc-gray-50:#3c4043;
+      --sc-gray-100:#303134;
+      --sc-gray-200:#3c4043;
+      --sc-gray-300:#5f6368;
+      --sc-gray-500:#80868b;
+      --sc-gray-600:#9aa0a6;
+      --sc-gray-700:#bdc1c6;
+      --sc-gray-900:#e8eaed;
+      --sc-shadow:0 1px 4px rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.16);
+      --sc-shadow-md:0 4px 16px rgba(0,0,0,.30),0 2px 4px rgba(0,0,0,.18);
+    }
+
+    /* ── Top bar ── */
+    .sc-top-bar {
+      display:flex;align-items:center;gap:10px;
+      padding:12px 0 18px;
+    }
+    .sc-top-title {
+      font-size:20px;font-weight:700;color:var(--sc-gray-900);
+      display:flex;align-items:center;gap:9px;flex:1;letter-spacing:-.3px;
+    }
+    .sc-top-title-icon {
+      width:32px;height:32px;border-radius:9px;
+      background:var(--sc-blue);
+      display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;
+    }
+    .sc-top-title-icon svg { display:block; }
+
+    .sc-month-select {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-300);
+      border-radius:var(--sc-radius-sm);
+      padding:8px 36px 8px 12px;
+      font-family:var(--sc-font);font-size:13px;font-weight:500;
+      color:var(--sc-gray-900);
+      appearance:none;-webkit-appearance:none;cursor:pointer;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235f6368' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 11px center;
+      min-width:136px;transition:border-color .15s;
+    }
+    .sc-month-select:hover { border-color:var(--sc-blue); }
+
+    /* ── Tabs ── */
+    .sc-tabs {
+      display:flex;gap:4px;
+      background:var(--sc-gray-100);
+      border-radius:var(--sc-radius-pill);
+      padding:4px;margin-bottom:20px;
+      width:fit-content;
+    }
+    .sc-tab {
+      padding:8px 20px;font-size:13px;font-weight:600;
+      color:var(--sc-gray-600);cursor:pointer;
+      border-radius:var(--sc-radius-pill);
+      transition:all .18s;
+      white-space:nowrap;
+    }
+    .sc-tab.active {
+      background:var(--surface,#fff);
+      color:var(--sc-blue);
+      box-shadow:var(--sc-shadow);
+    }
+    .sc-tab:hover:not(.active) { color:var(--sc-gray-900); }
+
+    /* ── Stat cards ── */
+    .sc-stats {
+      display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+      margin-bottom:14px;
+    }
+    .sc-stat {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-200);
+      border-radius:var(--sc-radius-md);
+      padding:18px 18px 16px;
+      position:relative;overflow:hidden;
+      box-shadow:var(--sc-shadow);
+      transition:box-shadow .18s,transform .18s;
+    }
+    .sc-stat:hover { box-shadow:var(--sc-shadow-md); transform:translateY(-1px); }
+    .sc-stat::before {
+      content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+      border-radius:4px 0 0 4px;
+    }
+    .sc-stat.blue::before { background:var(--sc-blue); }
+    .sc-stat.green::before { background:var(--sc-green); }
+    .sc-stat.purple::before { background:var(--sc-purple); }
+
+    .sc-stat-inner { display:flex;align-items:flex-start;gap:14px; }
+    .sc-stat-icon {
+      width:40px;height:40px;border-radius:10px;
+      display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;font-size:18px;
+    }
+    .sc-stat-icon.blue { background:var(--sc-blue-light); }
+    .sc-stat-icon.green { background:var(--sc-green-light); }
+    .sc-stat-icon.purple { background:var(--sc-purple-light); }
+    .sc-stat-body { flex:1;min-width:0; }
+    .sc-stat-label {
+      font-size:10px;font-weight:700;letter-spacing:.7px;
+      text-transform:uppercase;color:var(--sc-gray-500);
+      margin-bottom:6px;
+    }
+    .sc-stat-val {
+      font-size:26px;font-weight:700;line-height:1;
+      margin-bottom:5px;letter-spacing:-.5px;
+    }
+    .sc-stat-val.blue { color:var(--sc-blue); }
+    .sc-stat-val.green { color:var(--sc-green); }
+    .sc-stat-val.purple { color:var(--sc-purple); }
+    .sc-stat-val.neutral { color:var(--sc-gray-900); }
+    .sc-stat-sub { font-size:12px;color:var(--sc-gray-600);line-height:1.4; }
+
+    /* ── Date navigator ── */
+    .sc-date-nav {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-200);
+      border-radius:var(--sc-radius-lg);
+      padding:18px 22px 16px;margin-bottom:14px;
+      box-shadow:var(--sc-shadow);
+    }
+    .sc-date-nav-row {
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+    }
+    .sc-date-nav-center { text-align:center;flex:1; }
+    .sc-date-nav-dow {
+      font-size:11px;font-weight:700;letter-spacing:.8px;
+      text-transform:uppercase;color:var(--sc-gray-500);margin-bottom:4px;
+    }
+    .sc-date-nav-title {
+      font-size:20px;font-weight:700;color:var(--sc-gray-900);
+      margin-bottom:5px;letter-spacing:-.3px;
+    }
+    .sc-date-nav-shift {
+      display:inline-flex;align-items:center;gap:6px;
+      font-size:13px;color:var(--sc-gray-600);
+      background:var(--sc-gray-100);border-radius:var(--sc-radius-pill);
+      padding:4px 12px;
+    }
+    .sc-date-nav-today {
+      margin-top:14px;display:flex;justify-content:center;
+    }
+    .sc-nav-btn {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-300);
+      border-radius:var(--sc-radius-sm);
+      padding:9px 16px;font-size:12px;font-weight:600;
+      cursor:pointer;color:var(--sc-gray-700);
+      font-family:var(--sc-font);
+      transition:all .15s;white-space:nowrap;
+      display:flex;align-items:center;gap:5px;
+    }
+    .sc-nav-btn:hover:not(:disabled) {
+      background:var(--sc-blue-light);
+      border-color:var(--sc-blue);color:var(--sc-blue);
+    }
+    .sc-nav-btn:disabled { opacity:.35;cursor:not-allowed; }
+    .sc-today-btn {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-300);
+      border-radius:var(--sc-radius-pill);
+      padding:7px 24px;font-size:13px;font-weight:600;
+      cursor:pointer;color:var(--sc-gray-700);
+      font-family:var(--sc-font);transition:all .18s;
+    }
+    .sc-today-btn:hover { background:var(--sc-gray-50);border-color:var(--sc-gray-500); }
+    .sc-today-btn.active {
+      background:var(--sc-blue);color:#fff;border-color:var(--sc-blue);
+      box-shadow:0 2px 8px rgba(26,115,232,.3);
+    }
+
+    /* ── Timeline card ── */
+    .sc-timeline-card {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-200);
+      border-radius:var(--sc-radius-lg);
+      padding:20px 22px;margin-bottom:14px;
+      box-shadow:var(--sc-shadow);
+    }
+    .sc-tl-header {
+      display:flex;justify-content:space-between;align-items:center;
+      margin-bottom:18px;flex-wrap:wrap;gap:8px;
+    }
+    .sc-tl-title {
+      font-size:11px;font-weight:700;letter-spacing:.6px;
+      text-transform:uppercase;color:var(--sc-gray-500);
+      display:flex;align-items:center;gap:7px;
+    }
+    .sc-tl-legend {
+      display:flex;gap:14px;flex-wrap:wrap;
+    }
+    .sc-tl-legend-item {
+      display:flex;align-items:center;gap:5px;
+      font-size:12px;font-weight:500;color:var(--sc-gray-600);
+    }
+    .sc-dot {
+      width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;
+    }
+    .sc-dot-green  { background:var(--sc-green); }
+    .sc-dot-purple { background:var(--sc-purple); }
+    .sc-dot-gray   { background:var(--sc-gray-300); }
+    .sc-dot-blue   { background:var(--sc-blue); }
+    .sc-dot-yellow { background:var(--sc-yellow); }
+
+    /* Timeline bar */
+    .sc-tl-bar-wrap {
+      position:relative;height:20px;
+      background:var(--sc-gray-100);
+      border-radius:10px;margin-bottom:4px;overflow:visible;
+    }
+    .sc-tl-fill {
+      position:absolute;top:0;left:0;right:0;bottom:0;
+      background:linear-gradient(90deg,var(--sc-blue-light),var(--sc-blue-mid));
+      border-radius:10px;
+    }
+    .sc-tl-now {
+      position:absolute;top:-5px;bottom:-5px;
+      width:3px;background:var(--sc-red);
+      border-radius:2px;z-index:3;
+    }
+    .sc-tl-now::after {
+      content:'NOW';
+      position:absolute;top:-18px;left:50%;transform:translateX(-50%);
+      font-size:8px;font-weight:800;letter-spacing:.5px;
+      color:var(--sc-red);white-space:nowrap;font-family:var(--sc-font);
+    }
+    .sc-tl-marker {
+      position:absolute;top:4px;bottom:4px;
+      width:12px;border-radius:6px;z-index:2;
+      transform:translateX(-50%);
+      box-shadow:0 0 0 2px var(--surface,#fff);
+    }
+    .sc-tl-labels {
+      display:flex;justify-content:space-between;
+      font-size:11px;color:var(--sc-gray-500);font-weight:500;
+      margin-bottom:20px;padding:0 2px;
+    }
+
+    /* Break table */
+    .sc-break-table { width:100%;border-collapse:collapse; }
+    .sc-break-table th {
+      font-size:10px;font-weight:700;letter-spacing:.6px;
+      text-transform:uppercase;color:var(--sc-gray-500);
+      text-align:left;padding:0 12px 10px 0;
+      border-bottom:1.5px solid var(--sc-gray-200);
+    }
+    .sc-break-table th:last-child { text-align:right;padding-right:0; }
+    .sc-break-table td {
+      padding:13px 12px 13px 0;
+      border-bottom:1px solid var(--sc-gray-100);
+      vertical-align:middle;
+    }
+    .sc-break-table tr:last-child td { border-bottom:none; }
+
+    .sc-break-num {
+      width:30px;height:30px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;
+      font-size:12px;font-weight:700;
+      background:var(--sc-gray-100);color:var(--sc-gray-700);
+    }
+    .sc-break-num.purple {
+      background:var(--sc-purple-mid);color:var(--sc-purple);
+    }
+    .sc-break-time {
+      font-size:17px;font-weight:700;color:var(--sc-gray-900);
+      letter-spacing:-.2px;
+    }
+    .sc-break-dur {
+      font-size:12px;color:var(--sc-gray-500);font-weight:500;
+    }
+    .sc-break-actual {
+      font-size:15px;font-weight:700;color:var(--sc-gray-900);
+    }
+    .sc-break-actual.rta { color:var(--sc-purple); }
+
+    /* Status chips */
+    .sc-chip {
+      font-size:11px;font-weight:700;letter-spacing:.3px;
+      padding:5px 12px;border-radius:var(--sc-radius-pill);
+      display:inline-flex;align-items:center;gap:5px;
+    }
+    .sc-chip-green {
+      background:var(--sc-green-light);color:var(--sc-green-dark);
+      border:1px solid rgba(30,142,62,.15);
+    }
+    .sc-chip-purple {
+      background:var(--sc-purple-light);color:var(--sc-purple);
+      border:1px solid rgba(124,77,255,.15);
+    }
+    .sc-chip-gray {
+      background:var(--sc-gray-100);color:var(--sc-gray-600);
+      border:1px solid var(--sc-gray-200);
+    }
+    .sc-chip-dot {
+      width:6px;height:6px;border-radius:50%;display:inline-block;
+    }
+    .sc-chip-dot-green { background:var(--sc-green); }
+    .sc-chip-dot-purple { background:var(--sc-purple); }
+    .sc-chip-dot-gray { background:var(--sc-gray-500); }
+
+    /* RTA sections */
+    .sc-rta-hint {
+      background:var(--sc-gray-50);border:1px solid var(--sc-gray-200);
+      border-radius:var(--sc-radius-sm);
+      padding:12px 16px;font-size:13px;color:var(--sc-gray-700);
+      margin:16px 0 8px;line-height:1.5;
+    }
+    .sc-rta-note {
+      background:var(--sc-purple-light);
+      border-left:3px solid var(--sc-purple);
+      border-radius:0 var(--sc-radius-sm) var(--sc-radius-sm) 0;
+      padding:10px 16px;font-size:13px;color:var(--sc-purple);
+      margin-top:8px;line-height:1.5;
+    }
+
+    /* ── Month strip ── */
+    .sc-month-card {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-200);
+      border-radius:var(--sc-radius-lg);
+      padding:18px 22px 16px;margin-bottom:14px;
+      box-shadow:var(--sc-shadow);
+    }
+    .sc-month-header {
+      display:flex;justify-content:space-between;align-items:center;
+      margin-bottom:14px;flex-wrap:wrap;gap:8px;
+    }
+    .sc-month-title {
+      font-size:11px;font-weight:700;letter-spacing:.6px;
+      text-transform:uppercase;color:var(--sc-gray-500);
+      display:flex;align-items:center;gap:7px;
+    }
+    .sc-month-legend { display:flex;gap:12px; }
+    .sc-month-legend-item {
+      display:flex;align-items:center;gap:5px;
+      font-size:12px;font-weight:500;color:var(--sc-gray-600);
+    }
+    .sc-month-scroll { overflow-x:auto;padding-bottom:6px; }
+    .sc-month-scroll::-webkit-scrollbar { height:4px; }
+    .sc-month-scroll::-webkit-scrollbar-track { background:transparent; }
+    .sc-month-scroll::-webkit-scrollbar-thumb {
+      background:var(--sc-gray-300);border-radius:2px;
+    }
+
+    /* Modern Schedule Grid */
+    .sc-month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+      padding: 5px;
+    }
+
+    .sc-day-tile {
+      text-align:center;
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-200);
+      border-radius:var(--sc-radius-md);
+      padding:12px 6px;cursor:pointer;
+      transition:all .18s cubic-bezier(.34,1.4,.64,1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 90px;
+      position: relative;
+    }
+    .sc-day-tile:hover {
+      border-color:var(--sc-blue);
+      transform:translateY(-2px);
+      box-shadow:0 4px 12px rgba(26,115,232,.15);
+    }
+    .sc-day-tile.today {
+      border-color:var(--sc-blue);border-width:2px;
+      box-shadow:0 0 0 3px var(--sc-blue-light);
+    }
+    .sc-day-tile.is-today-marker::after {
+      content: 'TODAY';
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--sc-blue);
+      color: white;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .sc-day-tile.is-vl  { background:var(--sc-blue-light);border-color:transparent; }
+    .sc-day-tile.is-mvl { background:var(--sc-yellow-light,rgba(242,153,0,.10));border-color:transparent; }
+    .sc-day-tile.is-off { opacity:.5;background:var(--sc-gray-50); }
+
+    .sc-day-dow {
+      font-size:9px;font-weight:800;letter-spacing:.6px;
+      text-transform:uppercase;color:var(--sc-gray-500);margin-bottom:3px;
+    }
+    .sc-day-dow.blue { color:var(--sc-blue); }
+    .sc-day-num {
+      font-size:16px;font-weight:700;color:var(--sc-gray-900);
+      margin-bottom:4px;letter-spacing:-.5px;
+    }
+    .sc-day-num.blue { color:var(--sc-blue); }
+    .sc-day-shift {
+      font-size:11px;font-weight:600;color:var(--sc-gray-700);
+      line-height:1.2;margin-bottom:1px;
+    }
+    .sc-day-shift.blue   { color:var(--sc-blue); }
+    .sc-day-shift.off    { color:var(--sc-gray-500);font-weight:500; }
+    .sc-day-shift.vl     { color:var(--sc-blue); }
+    .sc-day-shift.mvl    { color:var(--sc-yellow); }
+    .sc-day-eos {
+      font-size:10px;color:var(--sc-gray-500);margin-bottom:5px;
+    }
+    .sc-day-eos.blue { color:var(--sc-blue); }
+    .sc-day-dots {
+      display:flex;justify-content:center;gap:3px;min-height:8px;
+    }
+
+    .sc-hint-text {
+      font-size:12px;color:var(--sc-gray-500);margin-top:12px;line-height:1.5;
+      display:flex;align-items:center;gap:6px;
+    }
+
+    /* ── Team view ── */
+    .sc-team-header {
+      display:flex;justify-content:space-between;align-items:baseline;
+      margin-bottom:12px;
+    }
+    .sc-team-title {
+      font-size:11px;font-weight:700;letter-spacing:.6px;
+      text-transform:uppercase;color:var(--sc-gray-500);
+    }
+    .sc-team-sort { font-size:12px;color:var(--sc-gray-500); }
+    .sc-agent-card {
+      background:var(--surface,#fff);
+      border:1.5px solid var(--sc-gray-200);
+      border-radius:var(--sc-radius-lg);
+      margin-bottom:8px;overflow:hidden;
+      box-shadow:var(--sc-shadow);
+      transition:box-shadow .18s,transform .18s;
+    }
+    .sc-agent-card:hover:not(.dimmed) {
+      box-shadow:var(--sc-shadow-md);transform:translateY(-1px);
+    }
+    .sc-agent-header {
+      display:flex;align-items:center;gap:14px;
+      padding:14px 18px;cursor:pointer;
+    }
+    .sc-agent-avatar {
+      width:42px;height:42px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:14px;font-weight:700;flex-shrink:0;
+      font-family:var(--sc-font);
+    }
+    .av-green  { background:var(--sc-green-light);color:var(--sc-green-dark); }
+    .av-blue   { background:var(--sc-blue-light);color:var(--sc-blue-dark); }
+    .av-yellow { background:var(--sc-yellow-light,rgba(242,153,0,.10));color:#b06000; }
+    .av-gray   { background:var(--sc-gray-100);color:var(--sc-gray-600); }
+
+    .sc-agent-info { flex:1;min-width:0; }
+    .sc-agent-name { font-size:14px;font-weight:700;color:var(--sc-gray-900);margin-bottom:2px; }
+    .sc-agent-meta { font-size:12px;color:var(--sc-gray-600);line-height:1.4; }
+    .sc-agent-right { display:flex;flex-direction:column;align-items:flex-end;gap:5px; }
+    .sc-agent-dots  { display:flex;gap:4px; }
+    .sc-agent-status { font-size:12px;font-weight:600; }
+    .sc-agent-status.green  { color:var(--sc-green-dark); }
+    .sc-agent-status.purple { color:var(--sc-purple); }
+
+    .sc-off-pill {
+      background:var(--sc-gray-100);color:var(--sc-gray-700);
+      border-radius:var(--sc-radius-pill);border:1px solid var(--sc-gray-200);
+      font-size:12px;font-weight:600;padding:4px 12px;
+    }
+    .sc-vl-pill {
+      background:var(--sc-blue-light);color:var(--sc-blue);
+      border-radius:var(--sc-radius-pill);border:1px solid rgba(26,115,232,.2);
+      font-size:12px;font-weight:600;padding:4px 12px;
+    }
+    .sc-mvl-pill {
+      background:var(--sc-yellow-light,rgba(242,153,0,.10));color:#b06000;
+      border-radius:var(--sc-radius-pill);
+      font-size:12px;font-weight:600;padding:4px 12px;
+    }
+
+    /* Agent detail expand */
+    .sc-agent-detail {
+      background:var(--sc-gray-50);
+      border-top:1.5px solid var(--sc-gray-200);
+      padding:12px 18px 14px 74px;
+      display:none;
+    }
+    .sc-agent-detail.open { display:block; }
+    .sc-detail-table { width:100%;border-collapse:collapse; }
+    .sc-detail-table th {
+      font-size:10px;font-weight:700;letter-spacing:.5px;
+      text-transform:uppercase;color:var(--sc-gray-500);
+      text-align:left;padding:0 0 8px;
+      border-bottom:1px solid var(--sc-gray-200);
+    }
+    .sc-detail-table th:last-child { text-align:right; }
+    .sc-detail-table td {
+      padding:8px 0;border-bottom:1px solid var(--sc-gray-100);
+      font-size:13px;vertical-align:middle;
+    }
+    .sc-detail-table tr:last-child td { border-bottom:none; }
+    .sc-d-sched { font-weight:600;color:var(--sc-gray-700); }
+    .sc-d-actual { font-weight:700;color:var(--sc-gray-900); }
+    .sc-d-actual.rta { color:var(--sc-purple); }
+
+    .sc-agent-card.dimmed { opacity:.5; }
+
+    /* Empty / loading */
+    .sc-empty {
+      text-align:center;padding:56px 20px;
+      color:var(--sc-gray-600);font-size:14px;
+    }
+    .sc-empty-icon { font-size:44px;margin-bottom:14px; }
+
+    /* ── Skeleton loaders ── */
+    .sc-skeleton {
+      background: linear-gradient(90deg, var(--sc-gray-200) 25%, var(--sc-gray-100) 50%, var(--sc-gray-200) 75%);
+      background-size: 200% 100%;
+      animation: sc-shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+    .sk-card { height: 140px; margin-bottom: 20px; border-radius: 12px; }
+    .sk-tile { height: 90px; border-radius: 8px; }
+    .sk-agent { height: 64px; margin-bottom: 10px; border-radius: 12px; }
+
+    @keyframes sc-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    @media (max-width: 768px) {
+      .sc-month-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+  </style>
+
+  <div class="sc-top-bar">
+    <div class="sc-top-title">
+      <div class="sc-top-title-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="4" width="18" height="17" rx="2.5" stroke="#fff" stroke-width="1.6"/>
+          <path d="M3 9h18M8 2v4M16 2v4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M7 13h4M7 17h7" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      Schedule
+    </div>
+    <select class="sc-month-select" id="sc-agent-select" onchange="onScheduleAgentChange(this.value)" style="display:none; margin-right:8px;">
+      <option value="">My Schedule</option>
+    </select>
+    <select class="sc-month-select" id="sc-month-select" onchange="onScheduleMonthChange(this.value)">
+      <option>Loading…</option>
+    </select>
+  </div>
+
+  <div class="sc-tabs">
+    <div class="sc-tab active" id="sc-tab-my" onclick="switchScheduleTab('my')">My Schedule</div>
+    <div class="sc-tab" id="sc-tab-team" onclick="switchScheduleTab('team')">Team Schedule</div>
+  </div>
+
+  <div id="sc-panel-my">
+    <div class="loading-state" id="sc-my-loader" style="margin-top: 40px;">
+      <div class="spinner"></div><span>Loading your schedule…</span>
+    </div>
+  </div>
+  <div id="sc-panel-team" style="display:none">
+    <div class="loading-state" id="sc-team-loader" style="margin-top: 40px;">
+      <div class="spinner"></div><span>Loading team schedule…</span>
+    </div>
+  </div>
+  `;
+}
+
+// ── State ──────────────────────────────────────────────────
+var SC = {
+  activeTab:    'my',
+  myData:       null,
+  teamData:     null,
+  currentDate:  null,
+  months:       [],
+  expandedAgents: {},
+  selectedLdap: ''
+};
+
+function initScheduleView() {
+  var d = new Date();
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  SC.currentDate = months[d.getMonth()] + '-' + d.getDate();
+  SC.selectedLdap = '';
+
+  var role = APP.session ? APP.session.role : 'agent';
+  if (role === 'manager' || role === 'supervisor' || role === 'delegate') {
+    document.getElementById('sc-agent-select').style.display = 'inline-block';
+    google.script.run
+      .withSuccessHandler(function(agents) {
+        var sel = document.getElementById('sc-agent-select');
+        var html = '<option value="">My Schedule</option>';
+        agents.forEach(function(a) {
+          html += '<option value="' + a.ldap + '">' + escHtml(a.displayName) + ' (' + a.ldap + ')</option>';
+        });
+        sel.innerHTML = html;
+      })
+      .clientGetScheduleAgentList();
+  }
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      populateMonthSelect(r);
+      // Wait for the dropdown to populate, then use its value!
+      setTimeout(function() {
+        var monthEl = document.getElementById('sc-month-select');
+        var month = monthEl ? monthEl.value : null;
+        loadMySchedule(month); 
+      }, 50);
+    })
+    .withFailureHandler(function() { loadMySchedule(); })
+    .clientGetScheduleMonths();
+}
+
+function populateMonthSelect(r) {
+  var sel = document.getElementById('sc-month-select');
+  if (!sel) return;
+  
+  // 1. Get the real current month and year from the system clock
+  var d = new Date();
+  var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var currentMonthStr = monthNames[d.getMonth()];
+  var currentYear = d.getFullYear(); 
+  
+  var months = (r && r.success && r.months) ? r.months : [];
+  
+  // 2. Scan the source sheet's dates and ONLY keep the current month
+  var filteredMonths = months.filter(function(m) {
+    return m.toLowerCase() === currentMonthStr.toLowerCase();
+  });
+  
+  // 3. If we found the current month in the sheet, use it. Otherwise, force the current month.
+  if (filteredMonths.length > 0) {
+    months = filteredMonths;
+  } else {
+    months = [currentMonthStr];
+  }
+
+  // 4. Format it beautifully (e.g., "May 2026")
+  months = months.map(function(m) { return m + ' ' + currentYear; });
+  
+  SC.months = months;
+  
+  // 5. Populate the dropdown with ONLY the current month
+  sel.innerHTML = months.map(function(m) {
+    return '<option value="' + m + '" selected>' + m + '</option>';
+  }).join('');
+}
+
+function onScheduleMonthChange(val) {
+  SC.myData = null; SC.teamData = null;
+  if (SC.activeTab === 'my')   loadMySchedule(val, SC.selectedLdap);
+  else                         loadTeamSchedule(SC.currentDate);
+}
+
+function onScheduleAgentChange(ldap) {
+  SC.selectedLdap = ldap;
+  SC.myData = null;
+  var month = document.getElementById('sc-month-select').value;
+  loadMySchedule(month, ldap);
+}
+
+function switchScheduleTab(tab) {
+  SC.activeTab = tab;
+  document.getElementById('sc-tab-my').classList.toggle('active', tab === 'my');
+  document.getElementById('sc-tab-team').classList.toggle('active', tab === 'team');
+  document.getElementById('sc-panel-my').style.display   = tab === 'my'   ? 'block' : 'none';
+  document.getElementById('sc-panel-team').style.display = tab === 'team' ? 'block' : 'none';
+  if (tab === 'team' && !SC.teamData) loadTeamSchedule(SC.currentDate);
+}
+
+// ── My Schedule ────────────────────────────────────────────
+function showMyScheduleSkeleton() {
+  var tiles = '';
+  for(var i=0; i<31; i++) tiles += '<div class="sc-skeleton sk-tile"></div>';
+
+  document.getElementById('sc-panel-my').innerHTML =
+    '<div class="sc-skeleton sk-card"></div>' +
+    '<div class="sc-month-card">' +
+      '<div class="sc-month-grid">' + tiles + '</div>' +
+    '</div>';
+}
+
+function showTeamScheduleSkeleton() {
+  var agents = '';
+  for(var i=0; i<8; i++) agents += '<div class="sc-skeleton sk-agent"></div>';
+
+  document.getElementById('sc-panel-team').innerHTML =
+    '<div class="sc-team-header"><div class="sc-skeleton" style="width:150px; height:20px;"></div></div>' +
+    agents;
+}
+
+function loadMySchedule(month, targetLdap) {
+  showMyScheduleSkeleton();
+  google.script.run
+    .withSuccessHandler(function(data) {
+      if (!data || !data.success) {
+        document.getElementById('sc-panel-my').innerHTML =
+          '<div class="sc-empty"><div class="sc-empty-icon">📅</div><p>Could not load schedule.</p></div>';
+        return;
+      }
+      SC.myData = data;
+      renderMySchedule();
+    })
+    .withFailureHandler(function() {
+      document.getElementById('sc-panel-my').innerHTML =
+        '<div class="sc-empty"><div class="sc-empty-icon">⚠️</div><p>Connection error. Please refresh.</p></div>';
+    })
+    .clientGetAgentSchedule(month || null, targetLdap || null);
+}
+
+function renderMySchedule() {
+  var data = SC.myData;
+  if (!data) return;
+  var todayKey = getTodayKey();
+  var dateKey  = SC.currentDate;
+  var shiftDay = (data.shiftDays || []).find(function(d) { return d.dateKey === dateKey; });
+  var breaks   = (data.breakDays && data.breakDays[dateKey]) ? data.breakDays[dateKey] : [];
+  var s        = data.summary || {};
+
+  var html = buildStatCards(shiftDay, breaks, s);
+  html += buildDateNav(shiftDay, dateKey, data.shiftDays);
+  html += buildTimelineCard(shiftDay, breaks, dateKey);
+  html += buildMonthStrip(data.shiftDays, data.breakDays, dateKey);
+
+  document.getElementById('sc-panel-my').innerHTML = html;
+}
+
+function buildStatCards(shiftDay, breaks, summary) {
+  var shiftVal = '—', shiftSub = '—';
+  if (shiftDay) {
+    if (shiftDay.type === 'WORK' && shiftDay.shiftStart) {
+      shiftVal = shiftDay.shiftStart;
+      shiftSub = shiftDay.shiftEnd ? 'Ends ' + shiftDay.shiftEnd + ' · 9 hrs' : '';
+    } else {
+      shiftVal = shiftDay.type;
+      shiftSub = '';
+    }
+  }
+  var adhere = breaks.filter(function(b){ return b.status === 'Adhere'; }).length;
+  var breakCount = breaks.length;
+  var breakSub = breakCount ? '30 min each · ' + adhere + '/' + breakCount + ' adhere' : 'No break data';
+
+  var shiftType = shiftDay && shiftDay.type === 'WORK' ? 'blue' : 'neutral';
+  var breakColor = adhere === breakCount && breakCount > 0 ? 'green' : breakCount > 0 ? 'purple' : 'blue';
+
+  return '<div class="sc-stats">' +
+    // Card 1 — Shift
+    '<div class="sc-stat blue">' +
+      '<div class="sc-stat-inner">' +
+        '<div class="sc-stat-icon blue">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sc-blue)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>' +
+        '</div>' +
+        '<div class="sc-stat-body">' +
+          '<div class="sc-stat-label">Today\'s Shift</div>' +
+          '<div class="sc-stat-val ' + shiftType + '">' + escHtml(shiftVal) + '</div>' +
+          '<div class="sc-stat-sub">' + escHtml(shiftSub) + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    // Card 2 — Breaks
+    '<div class="sc-stat ' + breakColor + '">' +
+      '<div class="sc-stat-inner">' +
+        '<div class="sc-stat-icon ' + breakColor + '">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sc-' + breakColor + ')" stroke-width="2" stroke-linecap="round"><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/><path d="M6 2v3M10 2v3M14 2v3"/></svg>' +
+        '</div>' +
+        '<div class="sc-stat-body">' +
+          '<div class="sc-stat-label">Breaks Today</div>' +
+          '<div class="sc-stat-val ' + breakColor + '">' + (breakCount || '—') + '</div>' +
+          '<div class="sc-stat-sub">' + escHtml(breakSub) + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    // Card 3 — Month
+    '<div class="sc-stat green">' +
+      '<div class="sc-stat-inner">' +
+        '<div class="sc-stat-icon green">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sc-green)" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>' +
+        '</div>' +
+        '<div class="sc-stat-body">' +
+          '<div class="sc-stat-label">Month Status</div>' +
+          '<div class="sc-stat-val green" style="font-size:20px">' + (summary.workDays || '—') + ' days</div>' +
+          '<div class="sc-stat-sub">' + (summary.vlDays || 0) + ' VL · ' + (summary.remainingWork || 0) + ' remaining</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function buildDateNav(shiftDay, dateKey, allDays) {
+  allDays = allDays || [];
+  var idx  = allDays.findIndex(function(d){ return d.dateKey === dateKey; });
+  var prev = idx > 0 ? allDays[idx - 1] : null;
+  var next = idx >= 0 && idx < allDays.length - 1 ? allDays[idx + 1] : null;
+  var isToday = (dateKey === getTodayKey());
+
+  // Parse date label parts
+  var dow = shiftDay ? shiftDay.dayOfWeek : '';
+  var dateLabel = shiftDay ? shiftDay.dateLabel + ', 2026' : dateKey;
+  var shift = shiftDay && shiftDay.shiftStart
+    ? shiftDay.shiftStart + ' → ' + shiftDay.shiftEnd
+    : (shiftDay ? shiftDay.type : 'No shift data');
+
+  return '<div class="sc-date-nav">' +
+    '<div class="sc-date-nav-row">' +
+      '<button class="sc-nav-btn" onclick="scNavigateDate(-1)"' + (!prev ? ' disabled' : '') + '>' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>' +
+        (prev ? prev.dateLabel : '') +
+      '</button>' +
+      '<div class="sc-date-nav-center">' +
+        '<div class="sc-date-nav-dow">' + escHtml(dow) + '</div>' +
+        '<div class="sc-date-nav-title">' + escHtml(dateLabel) + '</div>' +
+        '<div class="sc-date-nav-shift">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>' +
+          escHtml(shift) +
+        '</div>' +
+      '</div>' +
+      '<button class="sc-nav-btn" onclick="scNavigateDate(1)"' + (!next ? ' disabled' : '') + '>' +
+        (next ? next.dateLabel : '') +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>' +
+      '</button>' +
+    '</div>' +
+    '<div class="sc-date-nav-today">' +
+      '<button class="sc-today-btn' + (isToday ? ' active' : '') + '" onclick="scGoToday()">Today</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function buildTimelineCard(shiftDay, breaks, dateKey) {
+  var sos = shiftDay && shiftDay.shiftStart ? shiftDay.shiftStart : null;
+  var eos = shiftDay && shiftDay.shiftEnd   ? shiftDay.shiftEnd   : null;
+  if (!sos && breaks.length > 0 && breaks[0].sos) sos = breaks[0].sos;
+  if (!eos && breaks.length > 0 && breaks[0].eos) eos = breaks[0].eos;
+
+  var rtaBreaks = breaks.filter(function(b){ return b.status === 'Check RTA' || b.status === 'Check RTA Remarks'; });
+  var hasRta    = rtaBreaks.length > 0;
+
+  // Timeline bar markers
+  var markers = '';
+  if (sos && eos) {
+    var sosMs = parseTimeToMs(sos);
+    var eosMs = parseTimeToMs(eos);
+    var span  = eosMs - sosMs;
+    breaks.forEach(function(b) {
+      var bMs  = parseTimeToMs(b.schedTime);
+      var pct  = span > 0 ? ((bMs - sosMs) / span * 100) : 0;
+      pct = Math.max(1, Math.min(97, pct));
+      var color = b.status === 'Adhere' ? 'var(--sc-green)'
+        : b.status === 'No result yet' ? 'var(--sc-gray-300)'
+        : 'var(--sc-purple)';
+      markers += '<div class="sc-tl-marker" style="left:' + pct.toFixed(1) + '%;background:' + color + '"></div>';
+    });
+  }
+
+  var nowPct = 38;
+  if (sos && eos) {
+    var now   = new Date();
+    var nowMs = now.getHours() * 3600000 + now.getMinutes() * 60000;
+    nowPct = Math.max(0, Math.min(100, (nowMs - parseTimeToMs(sos)) / (parseTimeToMs(eos) - parseTimeToMs(sos)) * 100));
+  }
+
+  var dateLabel = shiftDay ? shiftDay.dateLabel : dateKey.replace('-',' ');
+
+  var breakRows = '';
+  if (breaks.length === 0) {
+    breakRows = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--sc-gray-500);font-size:13px">No break data for this date</td></tr>';
+  } else {
+    breaks.forEach(function(b, i) {
+      var isRta    = b.status === 'Check RTA' || b.status === 'Check RTA Remarks';
+      var numClass = isRta ? 'sc-break-num purple' : 'sc-break-num';
+      var chipHtml = b.status === 'Adhere'
+        ? '<span class="sc-chip sc-chip-green"><span class="sc-chip-dot sc-chip-dot-green"></span>Adhere</span>'
+        : b.status === 'No result yet'
+        ? '<span class="sc-chip sc-chip-gray"><span class="sc-chip-dot sc-chip-dot-gray"></span>No result yet</span>'
+        : '<span class="sc-chip sc-chip-purple"><span class="sc-chip-dot sc-chip-dot-purple"></span>Check RTA</span>';
+      breakRows += '<tr>' +
+        '<td><span class="' + numClass + '">' + (i+1) + '</span></td>' +
+        '<td><span class="sc-break-time">' + escHtml(b.schedTime) + '</span></td>' +
+        '<td><span class="sc-break-dur">30 min</span></td>' +
+        '<td><span class="sc-break-actual' + (isRta ? ' rta' : '') + '">' + escHtml(b.actualTime) + '</span></td>' +
+        '<td style="text-align:right">' + chipHtml + '</td>' +
+      '</tr>';
+    });
+  }
+
+  var rtaSection = '';
+  if (hasRta) {
+    rtaSection += '<div class="sc-rta-hint">When a break shows "Check RTA Remarks" the time shown shifts to the value in Time Remarks column (shown in purple below).</div>';
+    rtaBreaks.forEach(function(b) {
+      var origIdx = breaks.indexOf(b);
+      rtaSection += '<table class="sc-break-table" style="margin-bottom:0"><tbody><tr>' +
+        '<td><span class="sc-break-num purple">' + (origIdx+1) + '</span></td>' +
+        '<td><span class="sc-break-time">' + escHtml(b.schedTime) + '</span></td>' +
+        '<td><span class="sc-break-dur">30 min</span></td>' +
+        '<td><span class="sc-break-actual rta">' + escHtml(b.actualTime) + '</span></td>' +
+        '<td style="text-align:right"><span class="sc-chip sc-chip-purple"><span class="sc-chip-dot sc-chip-dot-purple"></span>Check RTA</span></td>' +
+      '</tr></tbody></table>';
+      if (b.timeRemarks) {
+        rtaSection += '<div class="sc-rta-note">RTA moved break ' + (origIdx+1) + ' to ' + escHtml(b.actualTime) + ' — check RTA remarks for details</div>';
+      }
+    });
+  }
+
+  return '<div class="sc-timeline-card">' +
+    '<div class="sc-tl-header">' +
+      '<span class="sc-tl-title">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sc-gray-500)" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>' +
+        'Shift Timeline — ' + escHtml(dateLabel) +
+      '</span>' +
+      '<div class="sc-tl-legend">' +
+        '<div class="sc-tl-legend-item"><span class="sc-dot sc-dot-green"></span>Adhere</div>' +
+        '<div class="sc-tl-legend-item"><span class="sc-dot sc-dot-purple"></span>Check RTA</div>' +
+        '<div class="sc-tl-legend-item"><span class="sc-dot sc-dot-gray"></span>Pending</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="sc-tl-bar-wrap">' +
+      '<div class="sc-tl-fill"></div>' +
+      '<div class="sc-tl-now" style="left:' + nowPct.toFixed(1) + '%"></div>' +
+      markers +
+    '</div>' +
+    '<div class="sc-tl-labels">' +
+      '<span>' + escHtml(sos || '—') + '</span>' +
+      (breaks[0] ? '<span>' + escHtml(breaks[0].schedTime) + '</span>' : '<span></span>') +
+      (breaks[1] ? '<span>' + escHtml(breaks[1].schedTime) + '</span>' : '<span></span>') +
+      (breaks[2] ? '<span>' + escHtml(breaks[2].schedTime) + '</span>' : '<span></span>') +
+      '<span>' + escHtml(eos || '—') + '</span>' +
+    '</div>' +
+    '<table class="sc-break-table"><thead><tr>' +
+      '<th style="width:36px">#</th>' +
+      '<th>Scheduled</th>' +
+      '<th>Duration</th>' +
+      '<th>Actual</th>' +
+      '<th style="text-align:right">Status</th>' +
+    '</tr></thead><tbody>' + breakRows + '</tbody></table>' +
+    rtaSection +
+  '</div>';
+}
+
+// ── REPLACE your existing buildMonthStrip() with this version ──
+// Changes:
+//   1. Adds a Sun–Sat day-of-week header row above the grid
+//   2. Inserts empty spacer tiles before the first day so each
+//      date lands in the correct column (weeks start on Sunday)
+//   3. The DOW is derived from the dateLabel (e.g. "May 1") so it
+//      works even if dayOfWeek is missing from the data
+
+function buildMonthStrip(allDays, breaksByDate, activeDateKey) {
+  if (!allDays || allDays.length === 0) return '';
+
+  var todayKey = getTodayKey();
+
+  // ── 1. DOW header (Sun → Sat) ────────────────────────────
+  var DOW_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var dowHeader = DOW_LABELS.map(function(d) {
+    return '<div style="text-align:center;font-size:10px;font-weight:800;' +
+           'letter-spacing:.6px;text-transform:uppercase;' +
+           'color:var(--sc-gray-500);padding-bottom:4px;">' + d + '</div>';
+  }).join('');
+
+  // ── 2. Compute the day-of-week (0=Sun) for the first tile ─
+  //    Prefer the dayOfWeek string from data; fall back to Date()
+  function getDOWIndex(day) {
+    // Try the string field first (Mon/Tue/Wed/Thu/Fri/Sat/Sun)
+    var dowMap = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+    if (day.dayOfWeek && dowMap.hasOwnProperty(day.dayOfWeek)) {
+      return dowMap[day.dayOfWeek];
+    }
+    // Fallback: parse from dateLabel e.g. "May 1" → new Date('May 1 2026')
+    try {
+      var parsed = new Date(day.dateLabel + ' 2026');
+      if (!isNaN(parsed.getTime())) return parsed.getDay(); // 0=Sun
+    } catch(e) {}
+    return 0;
+  }
+
+  var firstDOW = getDOWIndex(allDays[0]); // 0–6, 0 = Sunday
+
+  // ── 3. Leading spacer tiles ───────────────────────────────
+  var spacers = '';
+  for (var s = 0; s < firstDOW; s++) {
+    spacers += '<div></div>'; // empty cell — grid fills the gap
+  }
+
+  // ── 4. Day tiles (unchanged logic, just extracted cleanly) ─
+  var tiles = allDays.map(function(d) {
+    var isToday  = (d.dateKey === todayKey);
+    var isActive = (d.dateKey === activeDateKey);
+    var breaks   = (breaksByDate && breaksByDate[d.dateKey]) ? breaksByDate[d.dateKey] : [];
+
+    var tileClass = 'sc-day-tile';
+    if (isActive) tileClass += ' today';
+    if (isToday)  tileClass += ' is-today-marker';
+    if (d.type === 'VL')  tileClass += ' is-vl';
+    if (d.type === 'MVL') tileClass += ' is-mvl';
+    if (d.type === 'OFF' && !isActive) tileClass += ' is-off';
+
+    var dowClass   = isActive ? 'sc-day-dow blue'   : 'sc-day-dow';
+    var numClass   = isActive ? 'sc-day-num blue'   : 'sc-day-num';
+    var shiftClass = d.type === 'WORK'
+      ? (isActive ? 'sc-day-shift blue' : 'sc-day-shift')
+      : d.type === 'OFF' ? 'sc-day-shift off'
+      : d.type === 'VL'  ? 'sc-day-shift vl'
+      : 'sc-day-shift mvl';
+
+    var shiftText = d.type === 'WORK' && d.shiftStart ? d.shiftStart : d.type;
+    var eosLine   = d.type === 'WORK' && d.shiftEnd
+      ? '<div class="sc-day-eos' + (isActive ? ' blue' : '') + '">→' + d.shiftEnd + '</div>'
+      : '<div class="sc-day-eos"></div>';
+
+    var dots = '';
+    if (d.type === 'WORK' && breaks.length > 0) {
+      dots = breaks.map(function(b) {
+        var dotClass = b.status === 'Adhere'         ? 'sc-dot sc-dot-green'
+          : b.status === 'No result yet'             ? 'sc-dot sc-dot-gray'
+          : 'sc-dot sc-dot-purple';
+        return '<span class="' + dotClass + '"></span>';
+      }).join('');
+    }
+
+    // Extract day number from dateLabel ("May 16" → "16")
+    var dayNum = d.dateLabel ? d.dateLabel.split(' ')[1] : '';
+
+    return '<div class="' + tileClass + '" onclick="scJumpToDate(\'' + d.dateKey + '\')">' +
+      '<div class="' + dowClass + '">' + escHtml(d.dayOfWeek || '') + '</div>' +
+      '<div class="' + numClass + '">' + escHtml(dayNum) + '</div>' +
+      '<div class="' + shiftClass + '">' + escHtml(shiftText) + '</div>' +
+      eosLine +
+      '<div class="sc-day-dots">' + dots + '</div>' +
+    '</div>';
+  }).join('');
+
+  // ── 5. Assemble ───────────────────────────────────────────
+  return '<div class="sc-month-card">' +
+    '<div class="sc-month-header">' +
+      '<span class="sc-month-title">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sc-gray-500)" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>' +
+        escHtml((SC.myData && SC.myData.month) ? SC.myData.month + ' — Full Month' : 'Full Month') +
+      '</span>' +
+      '<div class="sc-month-legend">' +
+        '<div class="sc-month-legend-item"><span class="sc-dot sc-dot-gray"></span>OFF</div>' +
+        '<div class="sc-month-legend-item"><span class="sc-dot sc-dot-blue"></span>VL</div>' +
+        '<div class="sc-month-legend-item"><span class="sc-dot sc-dot-yellow"></span>MVL</div>' +
+      '</div>' +
+    '</div>' +
+    // DOW header sits outside the scroll so it's always visible
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;padding:0 5px 6px;">' +
+      dowHeader +
+    '</div>' +
+    '<div class="sc-month-scroll">' +
+      '<div class="sc-month-grid">' +
+        spacers + tiles +
+      '</div>' +
+    '</div>' +
+    '<div class="sc-hint-text">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>' +
+      'Dots below each working day = break adherence. Tap a tile to jump to that date.' +
+    '</div>' +
+  '</div>';
+}
+
+// ── Team Schedule ──────────────────────────────────────────
+function loadTeamSchedule(dateKey) {
+  showTeamScheduleSkeleton();
+  google.script.run
+    .withSuccessHandler(function(data) {
+      if (!data || !data.success) {
+        document.getElementById('sc-panel-team').innerHTML =
+          '<div class="sc-empty"><div class="sc-empty-icon">📅</div><p>Could not load team schedule.</p></div>';
+        return;
+      }
+      SC.teamData = data;
+      renderTeamSchedule();
+    })
+    .withFailureHandler(function() {
+      document.getElementById('sc-panel-team').innerHTML =
+        '<div class="sc-empty"><div class="sc-empty-icon">⚠️</div><p>Connection error. Please refresh.</p></div>';
+    })
+    .clientGetTeamSchedule(dateKey || SC.currentDate);
+}
+
+function renderTeamSchedule() {
+  var data = SC.teamData;
+  if (!data) return;
+  var agents = data.agents || [];
+
+  var html = '<div class="sc-team-header">' +
+    '<span class="sc-team-title">Team Schedule · ' + escHtml(data.date || SC.currentDate) + '</span>' +
+    '<span class="sc-team-sort">Sorted by SOS</span>' +
+  '</div>';
+
+  if (agents.length === 0) {
+    html += '<div class="sc-empty"><div class="sc-empty-icon">👥</div><p>No agents found.</p></div>';
+  } else {
+    html += agents.map(function(agent) { return buildAgentCard(agent); }).join('');
+  }
+
+  document.getElementById('sc-panel-team').innerHTML = html;
+}
+
+function buildAgentCard(agent) {
+  var isOff = (agent.shiftType === 'OFF');
+  var isVL  = (agent.shiftType === 'VL');
+  var isMVL = (agent.shiftType === 'MVL');
+  var isWorking = !isOff && !isVL && !isMVL;
+
+  var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + agent.ldap + '?sz=600&type=PLUS';
+  var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + agent.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
+  var avatarHtml = '<img src="' + momaP + '" onerror="this.onerror=null; this.src=\'' + momaF + '\';" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+
+  var avClass = isOff ? 'sc-agent-avatar av-gray'
+    : isVL || isMVL ? 'sc-agent-avatar av-blue'
+    : 'sc-agent-avatar av-green';
+
+  var metaStr = isWorking && agent.shiftStart
+    ? 'SOS ' + agent.shiftStart + ' → EOS ' + agent.shiftEnd + ' · ' + (agent.channel||'') + ' · ' + (agent.workflow||'')
+    : (agent.channel||'') + ' · ' + (agent.workflow||'');
+
+  var dots = '';
+  var hasRemarks = false;
+  if (isWorking && agent.breaks && agent.breaks.length > 0) {
+    agent.breaks.forEach(function(b) {
+      var dotClass = b.status === 'Adhere' ? 'sc-dot sc-dot-green'
+        : b.status === 'No result yet' ? 'sc-dot sc-dot-gray'
+        : 'sc-dot sc-dot-purple';
+      dots += '<span class="' + dotClass + '"></span>';
+      if (b.status !== 'Adhere' && b.status !== 'No result yet') hasRemarks = true;
+    });
+  }
+  var remarkCount = agent.breaks ? agent.breaks.filter(function(b){ return b.status !== 'Adhere' && b.status !== 'No result yet'; }).length : 0;
+
+  var statusHtml = '';
+  if (isOff) {
+    statusHtml = '<span class="sc-off-pill">OFF today</span>';
+  } else if (isVL) {
+    statusHtml = '<span class="sc-vl-pill">VL today</span>';
+  } else if (isMVL) {
+    statusHtml = '<span class="sc-mvl-pill">MVL today</span>';
+  } else if (dots) {
+    var allAdhere = !hasRemarks && agent.breaks && agent.breaks.every(function(b){ return b.status === 'Adhere'; });
+    statusHtml = '<div class="sc-agent-dots">' + dots + '</div>' +
+      '<div class="sc-agent-status ' + (allAdhere ? 'green' : 'purple') + '">' +
+        (allAdhere ? '✓ All adhere' : remarkCount + ' remark' + (remarkCount > 1 ? 's' : '')) +
+      '</div>';
+  }
+
+  var cardId   = 'sc-agent-' + agent.ldap;
+  var detailId = 'sc-detail-' + agent.ldap;
+  var dimClass = (!isWorking) ? ' dimmed' : '';
+
+  var detailRows = '';
+  if (isWorking && agent.breaks && agent.breaks.length > 0) {
+    detailRows = agent.breaks.map(function(b, i) {
+      var isRta   = b.status !== 'Adhere' && b.status !== 'No result yet';
+      var chipHtml = b.status === 'Adhere'
+        ? '<span class="sc-chip sc-chip-green" style="font-size:11px;padding:3px 10px"><span class="sc-chip-dot sc-chip-dot-green"></span>Adhere</span>'
+        : b.status === 'No result yet'
+        ? '<span class="sc-chip sc-chip-gray" style="font-size:11px;padding:3px 10px">—</span>'
+        : '<span class="sc-chip sc-chip-purple" style="font-size:11px;padding:3px 10px"><span class="sc-chip-dot sc-chip-dot-purple"></span>Check RTA</span>';
+      return '<tr>' +
+        '<td style="color:var(--sc-gray-500);font-size:12px">' + (i+1) + '</td>' +
+        '<td class="sc-d-sched">' + escHtml(b.schedTime) + '</td>' +
+        '<td class="sc-d-actual' + (isRta ? ' rta' : '') + '">' + escHtml(b.actualTime) + '</td>' +
+        '<td style="text-align:right">' + chipHtml + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  var detailHtml = '';
+  if (isWorking && detailRows) {
+    detailHtml = '<div class="sc-agent-detail" id="' + detailId + '">' +
+      '<table class="sc-detail-table"><thead><tr>' +
+        '<th style="width:24px">#</th>' +
+        '<th>Scheduled</th><th>Actual</th>' +
+        '<th style="text-align:right">Status</th>' +
+      '</tr></thead><tbody>' + detailRows + '</tbody></table>' +
+    '</div>';
+  }
+
+  return '<div class="sc-agent-card' + dimClass + '" id="' + cardId + '">' +
+    '<div class="sc-agent-header" onclick="toggleAgentDetail(\'' + agent.ldap + '\')">' +
+      '<div class="' + avClass + '" style="padding:0;overflow:hidden">' + avatarHtml + '</div>' +
+      '<div class="sc-agent-info">' +
+        '<div class="sc-agent-name">' + escHtml(agent.displayName || agent.ldap) + '</div>' +
+        '<div class="sc-agent-meta">' + escHtml(metaStr) + '</div>' +
+      '</div>' +
+      '<div class="sc-agent-right">' + statusHtml + '</div>' +
+    '</div>' +
+    detailHtml +
+  '</div>';
+}
+
+function toggleAgentDetail(ldap) {
+  var detail = document.getElementById('sc-detail-' + ldap);
+  if (!detail) return;
+  SC.expandedAgents[ldap] = !SC.expandedAgents[ldap];
+  detail.classList.toggle('open', SC.expandedAgents[ldap]);
+}
+
+// ── Date navigation helpers ────────────────────────────────
+function scNavigateDate(direction) {
+  var data = SC.myData;
+  if (!data || !data.shiftDays) return;
+  var days = data.shiftDays;
+  var idx  = days.findIndex(function(d){ return d.dateKey === SC.currentDate; });
+  var newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= days.length) return;
+  SC.currentDate = days[newIdx].dateKey;
+  renderMySchedule();
+  if (SC.activeTab === 'team') { SC.teamData = null; loadTeamSchedule(SC.currentDate); }
+}
+
+function scGoToday() {
+  SC.currentDate = getTodayKey();
+  renderMySchedule();
+}
+
+function scJumpToDate(dateKey) {
+  SC.currentDate = dateKey;
+  renderMySchedule();
+  var el = document.getElementById('view-schedule');
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ── Utility ────────────────────────────────────────────────
+function getTodayKey() {
+  var d = new Date();
+  var m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return m[d.getMonth()] + '-' + d.getDate();
+}
+
+function parseTimeToMs(timeStr) {
+  if (!timeStr) return 0;
+  var m = String(timeStr).match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!m) return 0;
+  var h = parseInt(m[1]) % 12 + (m[3].toUpperCase() === 'PM' ? 12 : 0);
+  return (h * 60 + parseInt(m[2])) * 60000;
+}
+</script>
