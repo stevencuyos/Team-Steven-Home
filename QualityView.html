@@ -140,6 +140,7 @@ function buildQualityShell() {
         '<select id="quality-month-picker" class="q-pill-select" onchange="onQualityMonthChange(this.value)">' +
           '<option value="">Loading...</option>' +
         '</select>' +
+        (role === 'manager' ? '<button class="q-pill-select q-btn-refresh" onclick="refreshQualityDataManual()" title="Re-aggregate from source" style="margin-left:8px;transition:all 0.2s ease;">↻ Refresh</button>' : '') +
       '</div>' +
     '</div>' +
     tabs +
@@ -348,6 +349,47 @@ function buildSkeletonView() {
       '<div class="q-skeleton q-skeleton-chart"></div>' +
     '</div>' +
   '</div>';
+}
+
+
+function refreshQualityDataManual() {
+  showToast('Re-aggregating Quality data… this may take 30–60 seconds.', 'warning', 5000);
+  var btn = document.querySelector('.q-btn-refresh');
+  if (btn) btn.style.animation = 'spin 1s linear infinite';
+
+  // Clear frontend cache entirely
+  QualityLocalCache.clear();
+
+  google.script.run
+    .withSuccessHandler(function() {
+      showToast('Quality data refreshed!', 'success');
+      // Reset all panels so they reload fresh
+      ['agent','manager','allteams'].forEach(function(t) {
+        var p = document.getElementById('quality-panel-' + t);
+        if (p) { p.dataset.loaded = ''; p.innerHTML = ''; }
+      });
+      // Re-fetch months and render
+      var activeTab = document.querySelector('.q-tab.active');
+      var currentTabId = activeTab ? activeTab.id.replace('quality-tab-', '') : 'agent';
+
+      google.script.run
+        .withSuccessHandler(function(months) {
+          if (!months) return;
+          QualityLocalCache.set('months', months);
+          initQualityWithMonths(months);
+          switchQualityTab(currentTabId);
+          if (btn) btn.style.animation = 'none';
+        })
+        .withFailureHandler(function() {
+          if (btn) btn.style.animation = 'none';
+        })
+        .clientGetAvailableQualityMonths();
+    })
+    .withFailureHandler(function(e) {
+      showToast('Refresh failed: ' + e.message, 'error');
+      if (btn) btn.style.animation = 'none';
+    })
+    .clientRunQualityAggregation();
 }
 
 // ── AGENT VIEW ────────────────────────────────────────────────────────────
@@ -915,6 +957,16 @@ var Q_TARGETS = { CUSTOMER: 95, BUSINESS: 90, COMPLIANCE: 99.5 };
 </script>
 
 <style>
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.q-btn-refresh:hover {
+  background: #007AFF !important;
+  color: #fff !important;
+  border-color: #007AFF !important;
+}
+
 /* ── Apple HIG Quality Dashboard Styles ── */
 .q-container { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Myriad Set Pro", "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--text-primary); }
 
