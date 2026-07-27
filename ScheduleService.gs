@@ -33,7 +33,6 @@ var SCHEDULE_CACHE_TTL = 900;
 
 
 // ============================================================
-// FIX #1 — readShiftsSheet() was completely missing. Added here.
 // ============================================================
 function readShiftsSheet() {
   var cache  = CacheService.getScriptCache();
@@ -157,7 +156,6 @@ function readShiftsForAgent(ldap, monthLabel) {
   var raw     = readShiftsSheet();
   var headers = raw[SHIFTS_HEADER_ROW];
 
-  // ── FIX #2: Robust LDAP column detection ──────────────────
   var ldapCol = -1;
   headers.forEach(function(h, i) {
     if (String(h).trim().toUpperCase() === 'LDAP') ldapCol = i;
@@ -188,7 +186,6 @@ function readShiftsForAgent(ldap, monthLabel) {
     }
   });
 
-  // ── FIX #3: DOW row — scan backwards for row containing day abbreviations ──
   var dowRow    = null;
   var dowNames  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   for (var i = SHIFTS_HEADER_ROW - 1; i >= Math.max(0, SHIFTS_HEADER_ROW - 5); i--) {
@@ -202,7 +199,6 @@ function readShiftsForAgent(ldap, monthLabel) {
   }
 
   // ── Find agent row ─────────────────────────────────────────
-  // FIX #4: compare trimmed lowercase on both sides
   var targetLdap = String(ldap).trim().toLowerCase();
   var agentRow   = null;
   for (var r = SHIFTS_HEADER_ROW + 1; r < raw.length; r++) {
