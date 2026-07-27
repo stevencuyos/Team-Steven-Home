@@ -1,0 +1,10 @@
+/* Dark: Shine overrides */
+body.dark-mode .tier-badge::after, body.dark-mode .badge-icon-wrap::after {
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0) 100%);
+}
+@keyframes claimPulse {
+  0% { box-shadow: 0 0 0 0 rgba(1, 135, 95, 0.7); transform: scale(0.98); }
+  50% { box-shadow: 0 0 0 15px rgba(1, 135, 95, 0); transform: scale(1.02); }
+  100% { box-shadow: 0 0 0 0 rgba(1, 135, 95, 0); transform: scale(1); }
+}
+.pulse-animate { animation: claimPulse 0.4s ease-out; }
