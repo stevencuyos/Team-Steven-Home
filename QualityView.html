@@ -376,6 +376,8 @@ function refreshQualityDataManual() {
         .withSuccessHandler(function(months) {
           if (!months) return;
           QualityLocalCache.set('months', months);
+          var picker = document.getElementById('quality-month-picker');
+          if (picker) picker.dataset.loaded = ''; // Reset flag so it repopulates
           initQualityWithMonths(months);
           switchQualityTab(currentTabId);
           if (btn) btn.style.animation = 'none';

@@ -59,6 +59,17 @@ var Q_TARGETS = {
   COMPLIANCE: 99.50
 };
 
+
+function getQualityCacheVersion() {
+  var cache = CacheService.getScriptCache();
+  var version = cache.get('quality_cache_version');
+  if (!version) {
+    version = new Date().getTime().toString();
+    cache.put('quality_cache_version', version, 21600); // 6 hours
+  }
+  return version;
+}
+
 // ── DATA LOADING ──────────────────────────────────────────────────────────
 
 function getRawQualityData() {
@@ -157,6 +168,9 @@ function clearQualityCache() {
   // Clear simple key just in case
   cache.remove(cacheKey);
 
+  // Bump version to invalidate specific data caches
+  cache.put('quality_cache_version', new Date().getTime().toString(), 21600);
+
   // Reload immediately
   getRawQualityData();
 }
@@ -254,7 +268,7 @@ function aggregateTrends(rows) {
 // ── VIEW DATA FETCHERS ────────────────────────────────────────────────────
 
 function getMyQualityData(ldap, month) {
-  var cacheKey = 'quality_agent_' + normalizeLdap(ldap) + '_' + month;
+  var cacheKey = getQualityCacheVersion() + '_quality_agent_' + normalizeLdap(ldap) + '_' + month;
   var cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -320,7 +334,7 @@ function getMyQualityData(ldap, month) {
 }
 
 function getTeamQualityData(managerLdap, month) {
-  var cacheKey = 'quality_team_' + normalizeLdap(managerLdap) + '_' + month;
+  var cacheKey = getQualityCacheVersion() + '_quality_team_' + normalizeLdap(managerLdap) + '_' + month;
   var cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -375,7 +389,7 @@ function getTeamQualityData(managerLdap, month) {
 }
 
 function getAllTeamsQualityData(month) {
-  var cacheKey = 'quality_allteams_' + month;
+  var cacheKey = getQualityCacheVersion() + '_quality_allteams_' + month;
   var cached = getCached(cacheKey);
   if (cached) return cached;
 
