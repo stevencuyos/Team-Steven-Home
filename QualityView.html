@@ -1,0 +1,1035 @@
+<script>
+// ============================================================
+// QualityView — Quality Audit Dashboard (ES5 Robust Version)
+// ============================================================
+
+var Q_ICONS = {
+  USER: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>',
+  TEAM: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0  4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.25 0 1 1-5.25 0 2.625 2.25 0 0 1 5.25 0Z" /></svg>',
+  ALL: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.003 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" /></svg>',
+  CHECK: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#34C759" style="width:20px;height:20px"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" /></svg>',
+  X: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#FF3B30" style="width:20px;height:20px"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" /></svg>',
+  DASHBOARD: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" style="width:14px;height:14px"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+  COPY: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>',
+  EXPORT: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>'
+};
+
+/**
+ * QUALITY LOCAL CACHE SYSTEM
+ */
+var QualityLocalCache = {
+  prefix: 'q_cache_',
+  get: function(key) {
+    var item = localStorage.getItem(this.prefix + key);
+    if (!item) return null;
+    try {
+      var data = JSON.parse(item);
+      if (Date.now() > data.expiry) {
+        localStorage.removeItem(this.prefix + key);
+        return null;
+      }
+      return data.value;
+    } catch(e) { return null; }
+  },
+  set: function(key, value, ttlMs) {
+    var ttl = ttlMs || 1800000; // 30 min default
+    try {
+      var data = {
+        value: value,
+        expiry: Date.now() + ttl
+      };
+      localStorage.setItem(this.prefix + key, JSON.stringify(data));
+    } catch(e) {}
+  },
+  clear: function() {
+    var self = this;
+    Object.keys(localStorage).forEach(function(k) {
+      if (k.indexOf(self.prefix) === 0) localStorage.removeItem(k);
+    });
+  }
+};
+
+var Q_COLORS = {
+  BLUE: '#007AFF',
+  GREEN: '#34C759',
+  RED: '#FF3B30',
+  ORANGE: '#FF9500',
+  TEAL: '#30B0C7',
+  INDIGO: '#5856D6'
+};
+
+function renderQualityView() {
+  try {
+    var el = document.getElementById('view-quality');
+    if (!el) return;
+    el.innerHTML = buildQualityShell();
+
+    // Try local cache for months
+    var cachedMonths = QualityLocalCache.get('months');
+    if (cachedMonths) {
+      initQualityWithMonths(cachedMonths);
+    }
+
+    google.script.run
+      .withSuccessHandler(function(months) {
+        if (!months) return;
+        QualityLocalCache.set('months', months);
+        initQualityWithMonths(months);
+      })
+      .withFailureHandler(function(err) {
+        console.error('Failed to load quality months:', err);
+      })
+      .clientGetAvailableQualityMonths();
+  } catch(e) {
+    console.error('Error rendering quality view:', e);
+  }
+}
+
+function initQualityWithMonths(months) {
+  var picker = document.getElementById('quality-month-picker');
+  if (!picker || picker.dataset.loaded === 'true') return;
+  picker.dataset.loaded = 'true';
+
+  picker.innerHTML = months.map(function(m, i) {
+    return '<option value="' + m + '"' + (i === 0 ? ' selected' : '') + '>' + m + '</option>';
+  }).join('');
+
+  window._qualitySelectedMonth = months[0] || '';
+  var role = (APP && APP.session) ? APP.session.role : 'agent';
+  var defaultTab = (role === 'manager' || role === 'supervisor') ? 'manager' : 'agent';
+
+  switchQualityTab(defaultTab);
+
+  // Background pre-fetch next few months
+  if (months.length > 1) {
+    months.slice(1, 4).forEach(function(m) {
+      setTimeout(function() { preWarmQualityCache(m); }, 2000);
+    });
+  }
+}
+
+function buildQualityShell() {
+  var role = (APP && APP.session) ? APP.session.role : 'agent';
+  var isMgmt = role === 'manager' || role === 'supervisor';
+
+  var tabs =
+    '<div class="q-tab-row">' +
+      qualityTab('agent',    Q_ICONS.USER, 'My Score',  true) +
+      (isMgmt ? qualityTab('manager', Q_ICONS.TEAM, 'My Team') : '') +
+      (role === 'manager' ? qualityTab('allteams', Q_ICONS.ALL, 'All Teams') : '') +
+    '</div>';
+
+  var agentSelector = '';
+  if (isMgmt) {
+    agentSelector =
+      '<div id="quality-agent-selector" class="q-card mb-16" style="display:none;align-items:center;gap:15px;padding:12px 20px">' +
+        '<span style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px">View Agent:</span>' +
+        '<select id="quality-agent-picker" onchange="switchQualityAgent(this.value)" class="q-select">' +
+          '<option value="">— Select an agent —</option>' +
+        '</select>' +
+      '</div>';
+  }
+
+  return '<div id="quality-root" class="q-container">' +
+    '<div class="q-topbar">' +
+      '<div class="q-page-title">' +
+        '<div class="q-icon-badge">' + Q_ICONS.DASHBOARD + '</div>' +
+        'Quality Dashboard' +
+      '</div>' +
+      '<div class="q-controls">' +
+        '<select id="quality-month-picker" class="q-pill-select" onchange="onQualityMonthChange(this.value)">' +
+          '<option value="">Loading...</option>' +
+        '</select>' +
+      '</div>' +
+    '</div>' +
+    tabs +
+    agentSelector +
+    '<div id="quality-panel-agent"   class="q-panel"></div>' +
+    '<div id="quality-panel-manager" class="q-panel" style="display:none"></div>' +
+    '<div id="quality-panel-allteams" class="q-panel" style="display:none"></div>' +
+  '</div>';
+}
+
+function qualityTab(id, icon, label, active) {
+  return '<div class="q-tab' + (active ? ' active' : '') + '" ' +
+    'id="quality-tab-' + id + '" onclick="switchQualityTab(\'' + id + '\')">' +
+    icon + '<span>' + label + '</span></div>';
+}
+
+function switchQualityTab(id) {
+  var role = (APP && APP.session) ? APP.session.role : 'agent';
+
+  ['agent','manager','allteams'].forEach(function(t) {
+    var panel = document.getElementById('quality-panel-' + t);
+    var tab   = document.getElementById('quality-tab-' + t);
+    if (!panel || !tab) return;
+    var on = t === id;
+    panel.style.display = on ? 'block' : 'none';
+    tab.classList.toggle('active', on);
+  });
+
+  var selector = document.getElementById('quality-agent-selector');
+  if (selector) {
+    var isMgmt = role === 'manager' || role === 'supervisor';
+    selector.style.display = (id === 'agent' && isMgmt) ? 'flex' : 'none';
+    if (id === 'agent' && isMgmt) populateQualityAgentDropdown();
+  }
+
+  var panel = document.getElementById('quality-panel-' + id);
+  var month = window._qualitySelectedMonth || '';
+
+  var cacheKey = id + '_' + month;
+  if (id === 'agent') {
+    var agentPicker = document.getElementById('quality-agent-picker');
+    var agentLdap = agentPicker ? agentPicker.value : (APP.session ? APP.session.ldap : '');
+    cacheKey += '_' + agentLdap;
+  }
+
+  var cached = QualityLocalCache.get(cacheKey);
+  if (cached) {
+    renderQualityFromData(id, panel, cached);
+    // Silent background refresh
+    refreshQualityData(id, month, cacheKey);
+    return;
+  }
+
+  if (panel && panel.dataset.loaded !== 'true') {
+    loadQualityPanel(id, panel);
+  }
+}
+
+function refreshQualityData(id, month, cacheKey) {
+  var handler = function(d) {
+    QualityLocalCache.set(cacheKey, d);
+  };
+
+  if (id === 'agent') {
+    var agentPicker = document.getElementById('quality-agent-picker');
+    var agentLdap = agentPicker ? agentPicker.value : '';
+    google.script.run.withSuccessHandler(handler).clientGetMyQuality(agentLdap, month);
+  } else if (id === 'manager') {
+    google.script.run.withSuccessHandler(handler).clientGetTeamQuality(month);
+  } else if (id === 'allteams') {
+    google.script.run.withSuccessHandler(handler).clientGetAllTeamsQuality(month);
+  }
+}
+
+function renderQualityFromData(id, panel, d) {
+  if (!panel || !d) return;
+  panel.dataset.loaded = 'true';
+  if (id === 'agent') {
+    panel.innerHTML = buildQualityAgentView(d);
+    renderQualityCharts(d);
+  } else if (id === 'manager') {
+    panel.innerHTML = buildQualityManagerView(d);
+    renderTeamQualityCharts(d);
+  } else if (id === 'allteams') {
+    panel.innerHTML = buildQualityAllTeamsView(d);
+  }
+}
+
+function populateQualityAgentDropdown() {
+  var picker = document.getElementById('quality-agent-picker');
+  if (!picker || picker.dataset.loaded === 'true') return;
+  picker.dataset.loaded = 'true';
+
+  var cached = QualityLocalCache.get('all_agents');
+  if (cached) {
+    setAgentPickerOptions(picker, cached);
+  }
+
+  google.script.run
+    .withSuccessHandler(function(agents) {
+      QualityLocalCache.set('all_agents', agents);
+      setAgentPickerOptions(picker, agents);
+    })
+    .clientGetAllAgents();
+}
+
+function setAgentPickerOptions(picker, agents) {
+  if (!picker) return;
+  picker.innerHTML = '<option value="">— Select an agent —</option>';
+  (agents || []).sort(function(a,b) {
+     var nameA = (a.displayName || a.ldap || '').toLowerCase();
+     var nameB = (b.displayName || b.ldap || '').toLowerCase();
+     return nameA.localeCompare(nameB);
+  }).forEach(function(a) {
+    var opt = document.createElement('option');
+    opt.value = a.ldap;
+    opt.textContent = (a.displayName || a.ldap) + ' (' + a.ldap + ')';
+    picker.appendChild(opt);
+  });
+}
+
+function switchQualityAgent(ldap) {
+  var panel = document.getElementById('quality-panel-agent');
+  if (!panel) return;
+  if (!ldap) {
+    panel.innerHTML = '<div class="q-empty"><h3>Please select an agent</h3></div>';
+    return;
+  }
+
+  var month = window._qualitySelectedMonth || '';
+  var cacheKey = 'agent_' + month + '_' + ldap;
+  var cached = QualityLocalCache.get(cacheKey);
+  if (cached) {
+    renderQualityFromData('agent', panel, cached);
+    return;
+  }
+
+  panel.innerHTML = buildSkeletonView();
+  google.script.run
+    .withSuccessHandler(function(d) {
+      QualityLocalCache.set(cacheKey, d);
+      renderQualityFromData('agent', panel, d);
+    })
+    .clientGetMyQuality(ldap, month);
+}
+
+function onQualityMonthChange(month) {
+  window._qualitySelectedMonth = month;
+  ['agent','manager','allteams'].forEach(function(t) {
+    var p = document.getElementById('quality-panel-' + t);
+    if (p) { p.dataset.loaded = ''; }
+  });
+  var activeTab = document.querySelector('.q-tab.active');
+  if (activeTab) {
+    var id = activeTab.id.replace('quality-tab-','');
+    switchQualityTab(id);
+  }
+}
+
+function loadQualityPanel(id, panel) {
+  if (!panel) return;
+  panel.innerHTML = buildSkeletonView();
+  var month = window._qualitySelectedMonth || '';
+
+  if (id === 'agent') {
+    var agentPicker = document.getElementById('quality-agent-picker');
+    var agentLdap = agentPicker ? agentPicker.value : '';
+    var role = (APP && APP.session) ? APP.session.role : 'agent';
+    if ((role === 'manager' || role === 'supervisor') && !agentLdap) {
+       panel.innerHTML = '<div class="q-empty"><h3>Please select an agent to view their scores</h3></div>';
+       return;
+    }
+    google.script.run
+      .withSuccessHandler(function(d) {
+        QualityLocalCache.set('agent_' + month + '_' + (agentLdap || APP.session.ldap), d);
+        renderQualityFromData('agent', panel, d);
+      })
+      .clientGetMyQuality(agentLdap, month);
+  } else if (id === 'manager') {
+    google.script.run
+      .withSuccessHandler(function(d) {
+        QualityLocalCache.set('manager_' + month, d);
+        renderQualityFromData('manager', panel, d);
+      })
+      .clientGetTeamQuality(month);
+  } else if (id === 'allteams') {
+    google.script.run
+      .withSuccessHandler(function(d) {
+        QualityLocalCache.set('allteams_' + month, d);
+        renderQualityFromData('allteams', panel, d);
+      })
+      .clientGetAllTeamsQuality(month);
+  }
+}
+
+function buildSkeletonView() {
+  return '<div class="q-skeleton-wrapper">' +
+    '<div class="q-score-row">' +
+      '<div class="q-skeleton q-skeleton-card"></div>' +
+      '<div class="q-skeleton q-skeleton-card"></div>' +
+      '<div class="q-skeleton q-skeleton-card"></div>' +
+      '<div class="q-skeleton q-skeleton-card"></div>' +
+    '</div>' +
+    '<div class="q-chart-grid-radar">' +
+      '<div class="q-skeleton q-skeleton-chart"></div>' +
+      '<div class="q-skeleton q-skeleton-chart"></div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ── AGENT VIEW ────────────────────────────────────────────────────────────
+
+function buildQualityAgentView(d) {
+  if (!d || !d.hasData) return '<div class="q-empty"><h3>No quality data for ' + (d ? d.month : 'this month') + '</h3></div>';
+
+  var s = d.stats;
+
+  // Coaching Summary
+  var coachingHtml = '';
+  if (s.groupedParams) {
+    var allParams = [].concat(s.groupedParams.customer, s.groupedParams.business, s.groupedParams.compliance);
+    var top3Fails = allParams
+      .filter(function(p) { return p.score !== null && p.score < 95; })
+      .sort(function(a,b) { return a.score - b.score; })
+      .slice(0, 3);
+
+    if (top3Fails.length > 0) {
+      coachingHtml = '<div class="q-card q-coaching-card mb-24">' +
+        '<div class="q-card-title">Top Improvement Areas</div>' +
+        '<div class="q-coaching-grid">' +
+          top3Fails.map(function(p) {
+            return '<div class="q-coaching-item">' +
+              '<div class="q-coaching-score">' + (p.score||0).toFixed(0) + '%</div>' +
+              '<div class="q-coaching-name">' + p.name.replace(/_/g,' ').toLowerCase() + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    }
+  }
+
+  return (
+    coachingHtml +
+    '<div class="q-score-row">' +
+      buildAppleScoreCard('Customer Critical', s.customer, Q_TARGETS.CUSTOMER, Q_COLORS.BLUE) +
+      buildAppleScoreCard('Business Critical', s.business, Q_TARGETS.BUSINESS, Q_COLORS.GREEN) +
+      buildAppleScoreCard('Compliance Critical', s.compliance, Q_TARGETS.COMPLIANCE, Q_COLORS.RED) +
+      buildAppleScoreCard('Total Audits', s.count, null, '#444', true) +
+    '</div>' +
+
+    '<div class="q-chart-grid-radar">' +
+      '<div class="q-card q-chart-card">' +
+        '<div class="q-card-title">Critical Performance</div>' +
+        '<div id="quality-radar-chart" class="q-radar-container"></div>' +
+      '</div>' +
+      '<div class="q-card q-chart-card">' +
+        '<div class="q-card-title">Parameter Breakdown</div>' +
+        buildGroupedParameterView(s.groupedParams) +
+      '</div>' +
+    '</div>' +
+
+    '<div class="q-card mt-24">' +
+       '<div class="q-card-title-row">' +
+          '<div class="q-card-title">Performance Trends</div>' +
+          '<div class="q-controls">' +
+            '<select class="q-pill-select-sm" onchange="toggleTrendView(\'agent\', this.value)">' +
+              '<option value="daily">Daily</option>' +
+              '<option value="weekly">Weekly</option>' +
+            '</select>' +
+          '</div>' +
+       '</div>' +
+       '<div id="quality-trend-chart" style="height:350px"></div>' +
+    '</div>' +
+
+    buildQualityCaseLogTable(d.caseLog)
+  );
+}
+
+function buildGroupedParameterView(grouped) {
+  if (!grouped) return '';
+  var html = '<div class="q-grouped-params">';
+  var sections = [
+    { label: 'Customer Critical', key: 'customer', color: Q_COLORS.BLUE },
+    { label: 'Business Critical', key: 'business', color: Q_COLORS.GREEN },
+    { label: 'Compliance Critical', key: 'compliance', color: Q_COLORS.RED }
+  ];
+
+  sections.forEach(function(sec) {
+    if (!grouped[sec.key]) return;
+    html += '<div class="q-param-section">' +
+      '<div class="q-param-header" style="color:' + sec.color + '">' + sec.label + '</div>' +
+      '<div class="q-param-list">';
+    grouped[sec.key].forEach(function(p) {
+      var score = p.score;
+      var scoreText = score !== null ? score.toFixed(0) + '%' : '—';
+      var color = score === null ? '#888' : (score >= 95 ? Q_COLORS.GREEN : (score >= 80 ? Q_COLORS.ORANGE : Q_COLORS.RED));
+      html += '<div class="q-param-row clickable" onclick="filterByParameter(\'' + p.name + '\')">' +
+        '<span class="q-param-name" title="' + p.name.replace(/_/g, ' ') + '">' + p.name.replace(/_/g, ' ').toLowerCase() + '</span>' +
+        '<div class="q-param-bar-container"><div class="q-param-bar" style="width:' + (score||0) + '%;background:' + color + '"></div></div>' +
+        '<span class="q-param-val" style="color:' + color + '">' + scoreText + '</span>' +
+      '</div>';
+    });
+    html += '</div></div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
+function filterByParameter(paramName) {
+  var table = document.getElementById('quality-case-table');
+  if (!table) return;
+
+  // Find cases where this parameter is 'No'
+  var rows = table.querySelectorAll('tbody > tr:not(.q-details-row)');
+  rows.forEach(function(r) {
+    var idx = r.dataset.index;
+    var caseData = window._currentCaseLog ? window._currentCaseLog[idx] : null;
+    if (!caseData) return;
+
+    // Check if parameter is 'no' in any critical group (using uppercase keys from service)
+    var pKey = paramName.toUpperCase();
+    var isFail =
+      (caseData.details.customer[pKey] && String(caseData.details.customer[pKey]).toLowerCase() === 'no') ||
+      (caseData.details.business[pKey] && String(caseData.details.business[pKey]).toLowerCase() === 'no') ||
+      (caseData.details.compliance[pKey] && String(caseData.details.compliance[pKey]).toLowerCase() === 'no');
+
+    r.style.display = isFail ? 'table-row' : 'none';
+  });
+
+  // Highlight the filter state
+  var activeBtn = document.querySelector('.q-filters .q-filter-btn.active');
+  if (activeBtn) activeBtn.classList.remove('active');
+
+  // Scroll to table
+  table.scrollIntoView({ behavior: 'smooth' });
+}
+
+function buildAppleScoreCard(label, score, target, color, isCounter) {
+  var isPass = target === null || score >= target;
+  var statusText = isCounter ? 'This Month' : (isPass ? 'On Target' : 'Below Target');
+  var scoreDisplay = isCounter ? score : (score !== null ? score.toFixed(1) + '%' : '—');
+
+  return '<div class="q-apple-card" style="border-top: 4px solid ' + color + '">' +
+    '<div class="q-card-label">' + label + '</div>' +
+    '<div class="q-card-value" style="color:' + color + '">' + scoreDisplay + '</div>' +
+    '<div class="q-card-status ' + (isPass || isCounter ? 'on-target' : 'below-target') + '">' +
+      (isCounter ? '' : (isPass ? Q_ICONS.CHECK : Q_ICONS.X)) +
+      '<span>' + statusText + '</span>' +
+    '</div>' +
+    (target ? '<div class="q-card-target">Target: ' + target + '%</div>' : '') +
+  '</div>';
+}
+
+function renderQualityCharts(d) {
+  if (!d || !d.stats || !window.ApexCharts) return;
+  var s = d.stats;
+
+  // Radar Chart - Larger & Responsive
+  var radarOptions = {
+    series: [
+      { name: 'My Score', data: [s.customer, s.business, s.compliance] },
+      { name: 'Target', data: [Q_TARGETS.CUSTOMER, Q_TARGETS.BUSINESS, Q_TARGETS.COMPLIANCE] }
+    ],
+    chart: { height: '100%', type: 'radar', toolbar: { show: false }, animations: { speed: 1000 } },
+    xaxis: {
+      categories: ['Customer', 'Business', 'Compliance'],
+      labels: { style: { fontSize: '15px', fontWeight: 700, colors: ['var(--text-hint)', 'var(--text-hint)', 'var(--text-hint)'] } }
+    },
+    yaxis: { show: false, min: 0, max: 100 },
+    colors: [Q_COLORS.BLUE, Q_COLORS.RED],
+    fill: { opacity: 0.2 },
+    markers: { size: 5, hover: { size: 8 } },
+    stroke: { width: 4 },
+    legend: { position: 'bottom', fontSize: '15px', labels: { colors: 'var(--text-secondary)' } }
+  };
+  new ApexCharts(document.querySelector("#quality-radar-chart"), radarOptions).render();
+
+  window._qualityAgentData = d;
+  renderTrendChart('quality-trend-chart', d.trends.daily);
+}
+
+function renderTrendChart(elId, data) {
+  if (!data || !data.length || !window.ApexCharts) return;
+  var el = document.getElementById(elId);
+  if (!el) return;
+
+  var options = {
+    series: [
+      { name: 'Average QA', data: data.map(function(t) { return (t.avg || 0).toFixed(1); }) },
+      { name: 'Customer', data: data.map(function(t) { return (t.customer || 0).toFixed(1); }) },
+      { name: 'Business', data: data.map(function(t) { return (t.business || 0).toFixed(1); }) },
+      { name: 'Compliance', data: data.map(function(t) { return (t.compliance || 0).toFixed(1); }) }
+    ],
+    chart: { type: 'area', height: 350, toolbar: { show: false } },
+    colors: [Q_COLORS.BLUE, Q_COLORS.INDIGO, Q_COLORS.GREEN, Q_COLORS.RED],
+    dataLabels: { enabled: false },
+    stroke: { curve: 'smooth', width: 3 },
+    xaxis: { categories: data.map(function(t) { return t.label; }), labels: { style: { colors: 'var(--text-hint)' } } },
+    yaxis: { max: 100, labels: { style: { colors: 'var(--text-hint)' } } },
+    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.1 } },
+    annotations: {
+      yaxis: [
+        { y: Q_TARGETS.CUSTOMER, borderColor: Q_COLORS.BLUE, strokeDashArray: 4, label: { text: 'Cust ('+Q_TARGETS.CUSTOMER+'%)', style: { color: '#fff', background: Q_COLORS.BLUE } } },
+        { y: Q_TARGETS.BUSINESS, borderColor: Q_COLORS.GREEN, strokeDashArray: 4, label: { text: 'Bus ('+Q_TARGETS.BUSINESS+'%)', style: { color: '#fff', background: Q_COLORS.GREEN } } },
+        { y: Q_TARGETS.COMPLIANCE, borderColor: Q_COLORS.RED, strokeDashArray: 4, label: { text: 'Comp ('+Q_TARGETS.COMPLIANCE+'%)', style: { color: '#fff', background: Q_COLORS.RED } } }
+      ]
+    },
+    tooltip: { theme: 'dark' },
+    grid: { borderColor: 'var(--border)' }
+  };
+  el.innerHTML = '';
+  new ApexCharts(el, options).render();
+}
+
+function toggleTrendView(viewType, granularity) {
+  var d = viewType === 'agent' ? window._qualityAgentData : window._qualityTeamData;
+  var elId = viewType === 'agent' ? 'quality-trend-chart' : 'team-trend-chart';
+  if (!d || !d.trends) return;
+  renderTrendChart(elId, d.trends[granularity]);
+}
+
+// ── MANAGER VIEW ──────────────────────────────────────────────────────────
+
+function buildQualityManagerView(d) {
+  if (!d || !d.hasData) return '<div class="q-empty"><h3>No team quality data available</h3></div>';
+
+  var s = d.stats;
+  return (
+    '<div class="q-score-row">' +
+      buildAppleScoreCard('Team Customer', s.customer, Q_TARGETS.CUSTOMER, Q_COLORS.BLUE) +
+      buildAppleScoreCard('Team Business', s.business, Q_TARGETS.BUSINESS, Q_COLORS.GREEN) +
+      buildAppleScoreCard('Team Compliance', s.compliance, Q_TARGETS.COMPLIANCE, Q_COLORS.RED) +
+      buildAppleScoreCard('Team Audits', s.count, null, '#444', true) +
+    '</div>' +
+
+    '<div class="q-card mb-24">' +
+       '<div class="q-card-title-row">' +
+          '<div class="q-card-title">Team Performance Trends</div>' +
+          '<select class="q-pill-select-sm" onchange="toggleTrendView(\'team\', this.value)">' +
+            '<option value="weekly">Weekly</option>' +
+            '<option value="daily">Daily</option>' +
+          '</select>' +
+       '</div>' +
+       '<div id="team-trend-chart" style="height:350px"></div>' +
+    '</div>' +
+
+    '<div class="q-card mb-24">' +
+      '<div class="q-card-title">Team Performance Breakdown</div>' +
+      '<div id="team-quality-bar-chart" style="height:500px"></div>' +
+    '</div>' +
+
+    buildHeatmapView(d.agents) +
+
+    '<div class="q-card mt-24">' +
+      '<div class="q-card-title">Agent Quality Scorecard</div>' +
+      buildQualityAgentScorecard(d.agents) +
+    '</div>'
+  );
+}
+
+function buildHeatmapView(agents) {
+  // Identify common failing parameters across team
+  var paramFails = {};
+  agents.forEach(function(a) {
+    if (!a.stats || !a.stats.params) return;
+    Object.keys(a.stats.params).forEach(function(p) {
+      var score = a.stats.params[p];
+      if (score !== null && score < 95) {
+        paramFails[p] = (paramFails[p] || 0) + 1;
+      }
+    });
+  });
+
+  var sorted = Object.keys(paramFails).map(function(k) {
+    return { name: k, count: paramFails[k] };
+  }).sort(function(a,b) { return b.count - a.count; }).slice(0, 5);
+
+  if (sorted.length === 0) return '';
+
+  return '<div class="q-card mt-24">' +
+    '<div class="q-card-title">Team Risk Areas (systemic failures)</div>' +
+    '<div class="q-heatmap-grid">' +
+      sorted.map(function(item) {
+        return '<div class="q-heatmap-item">' +
+          '<div class="q-heatmap-count">' + item.count + ' agents</div>' +
+          '<div class="q-heatmap-name">' + item.name.replace(/_/g,' ').toLowerCase() + '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+  '</div>';
+}
+
+function renderTeamQualityCharts(d) {
+  if (!d || !d.agents || d.agents.length === 0 || !window.ApexCharts) return;
+
+  var agents = d.agents.slice(0, 15);
+  var categories = agents.map(function(a) { return a.displayName || a.ldap; });
+
+  var options = {
+    series: [
+      { name: 'Customer', data: agents.map(function(a) { return a.stats.customer.toFixed(1); }) },
+      { name: 'Business', data: agents.map(function(a) { return a.stats.business.toFixed(1); }) },
+      { name: 'Compliance', data: agents.map(function(a) { return a.stats.compliance.toFixed(1); }) }
+    ],
+    chart: { type: 'bar', height: 500, toolbar: { show: false }, stacked: false, background: 'transparent' },
+    plotOptions: { bar: { horizontal: false, columnWidth: '60%', borderRadius: 6 } },
+    dataLabels: { enabled: false },
+    xaxis: { categories: categories, labels: { rotate: -45, style: { fontSize: '11px', colors: 'var(--text-hint)' } } },
+    yaxis: { title: { text: 'Score %', style: { color: 'var(--text-hint)' } }, max: 100, labels: { style: { colors: 'var(--text-hint)' } } },
+    colors: [Q_COLORS.BLUE, Q_COLORS.GREEN, Q_COLORS.RED],
+    legend: { position: 'top', horizontalAlign: 'right', labels: { colors: 'var(--text-secondary)' } },
+    grid: { borderColor: 'var(--border)' },
+    tooltip: { theme: 'dark', y: { formatter: function(val) { return val + "%"; } } }
+  };
+
+  new ApexCharts(document.querySelector("#team-quality-bar-chart"), options).render();
+
+  window._qualityTeamData = d;
+  renderTrendChart('team-trend-chart', d.trends.weekly);
+}
+
+function buildQualityAgentScorecard(agents) {
+  var rows = agents.map(function(a) {
+    var avg = (a.stats.customer + a.stats.business + a.stats.compliance) / 3;
+    return '<tr onclick="switchQualityAgent(\'' + a.ldap + '\'); switchQualityTab(\'agent\')">' +
+      '<td style="text-align:left;font-weight:600">' + (a.displayName || a.ldap) + '</td>' +
+      '<td>' + a.stats.count + '</td>' +
+      '<td style="color:' + (a.stats.customer >= Q_TARGETS.CUSTOMER ? Q_COLORS.GREEN : Q_COLORS.RED) + '">' + a.stats.customer.toFixed(1) + '%</td>' +
+      '<td style="color:' + (a.stats.business >= Q_TARGETS.BUSINESS ? Q_COLORS.GREEN : Q_COLORS.RED) + '">' + a.stats.business.toFixed(1) + '%</td>' +
+      '<td style="color:' + (a.stats.compliance >= Q_TARGETS.COMPLIANCE ? Q_COLORS.GREEN : Q_COLORS.RED) + '">' + a.stats.compliance.toFixed(1) + '%</td>' +
+      '<td style="font-weight:800">' + avg.toFixed(1) + '%</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="q-table-container"><table class="q-table"><thead><tr>' +
+    '<th style="text-align:left">Agent</th><th>Audits</th><th>Customer</th><th>Business</th><th>Compliance</th><th>Avg</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+// ── ALL TEAMS VIEW ────────────────────────────────────────────────────────
+
+function buildQualityAllTeamsView(d) {
+  if (!d || !d.teams || d.teams.length === 0) return '<div class="q-empty"><h3>No cross-team data available</h3></div>';
+
+  setTimeout(function() { renderAllTeamsQualityChart(d); }, 100);
+
+  return (
+    '<div class="q-card mb-24">' +
+      '<div class="q-card-title">Site-wide Quality Benchmark</div>' +
+      '<div id="all-teams-quality-chart" style="height:450px"></div>' +
+    '</div>' +
+    '<div class="q-card">' +
+      '<div class="q-card-title-row">' +
+        '<div class="q-card-title">All Teams Comparison</div>' +
+        '<button class="q-btn-sm" onclick="exportQualityCSV()">Export CSV</button>' +
+      '</div>' +
+      '<div class="q-table-container"><table class="q-table"><thead><tr>' +
+        '<th style="text-align:left">Team</th><th>Audits</th><th>Customer</th><th>Business</th><th>Compliance</th><th>Average</th>' +
+      '</tr></thead><tbody>' +
+      d.teams.map(function(t) {
+        var avg = (t.stats.customer + t.stats.business + t.stats.compliance) / 3;
+        return '<tr>' +
+          '<td style="text-align:left;font-weight:700">' + t.teamName + '</td>' +
+          '<td>' + t.stats.count + '</td>' +
+          '<td>' + t.stats.customer.toFixed(1) + '%</td>' +
+          '<td>' + t.stats.business.toFixed(1) + '%</td>' +
+          '<td>' + t.stats.compliance.toFixed(1) + '%</td>' +
+          '<td style="font-weight:800">' + avg.toFixed(1) + '%</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>' +
+    '</div>'
+  );
+}
+
+function renderAllTeamsQualityChart(d) {
+  var teams = d.teams;
+  var el = document.querySelector("#all-teams-quality-chart");
+  if (!el || !window.ApexCharts) return;
+
+  var options = {
+    series: [
+      { name: 'Customer', data: teams.map(function(t) { return t.stats.customer.toFixed(1); }) },
+      { name: 'Business', data: teams.map(function(t) { return t.stats.business.toFixed(1); }) },
+      { name: 'Compliance', data: teams.map(function(t) { return t.stats.compliance.toFixed(1); }) }
+    ],
+    chart: { type: 'bar', height: 450, toolbar: { show: false }, background: 'transparent' },
+    plotOptions: { bar: { horizontal: false, columnWidth: '55%', borderRadius: 8 } },
+    dataLabels: { enabled: false },
+    xaxis: { categories: teams.map(function(t) { return t.teamName; }), labels: { style: { colors: 'var(--text-hint)', fontWeight: 600 } } },
+    yaxis: { title: { text: 'Score %', style: { color: 'var(--text-hint)' } }, max: 100, labels: { style: { colors: 'var(--text-hint)' } } },
+    colors: [Q_COLORS.BLUE, Q_COLORS.GREEN, Q_COLORS.RED],
+    legend: { position: 'top', horizontalAlign: 'right', labels: { colors: 'var(--text-secondary)' } },
+    grid: { borderColor: 'var(--border)' },
+    tooltip: { theme: 'dark', y: { formatter: function(val) { return val + "%"; } } }
+  };
+  new ApexCharts(el, options).render();
+}
+
+// ── CASE LOG & LOOKUP ─────────────────────────────────────────────────────
+
+function buildQualityCaseLogTable(cases) {
+  if (!cases || cases.length === 0) return '';
+  window._currentCaseLog = cases;
+
+  var rows = cases.map(function(c, i) {
+    var custMarkdowns = Object.keys(c.details.customer).filter(function(k) { return String(c.details.customer[k]).toLowerCase() === 'no'; });
+    var busMarkdowns = Object.keys(c.details.business).filter(function(k) { return String(c.details.business[k]).toLowerCase() === 'no'; });
+    var compMarkdowns = Object.keys(c.details.compliance).filter(function(k) { return String(c.details.compliance[k]).toLowerCase() === 'no'; });
+
+    var markdownHtml = '';
+    if (custMarkdowns.length > 0) markdownHtml += '<div class="q-markdown-chip cust">Cust: ' + custMarkdowns.join(', ') + '</div>';
+    if (busMarkdowns.length > 0) markdownHtml += '<div class="q-markdown-chip bus">Bus: ' + busMarkdowns.join(', ') + '</div>';
+    if (compMarkdowns.length > 0) markdownHtml += '<div class="q-markdown-chip comp">Comp: ' + compMarkdowns.join(', ') + '</div>';
+    if (!markdownHtml) markdownHtml = '<div class="q-perfect">Perfect Audit!</div>';
+
+    return '<tr data-index="' + i + '">' +
+      '<td style="text-align:left;vertical-align:middle">' +
+        '<div class="q-case-id-row">' +
+          '<a href="https://cases.connect.corp.google.com/' + c.caseId + '" target="_blank" class="q-case-link">' + c.caseId + '</a>' +
+          '<button class="q-icon-btn" onclick="copyToClipboard(\'' + c.caseId + '\')">' + Q_ICONS.COPY + '</button>' +
+        '</div>' +
+        '<div style="font-size:10px;color:var(--text-hint);margin-top:2px">' + c.reviewDate + '</div>' +
+      '</td>' +
+      '<td style="vertical-align:middle">' + (c.customer == 1 ? Q_ICONS.CHECK : Q_ICONS.X) + '</td>' +
+      '<td style="vertical-align:middle">' + (c.business == 1 ? Q_ICONS.CHECK : Q_ICONS.X) + '</td>' +
+      '<td style="vertical-align:middle">' + (c.compliance == 1 ? Q_ICONS.CHECK : Q_ICONS.X) + '</td>' +
+      '<td style="text-align:left;vertical-align:middle">' + markdownHtml + '</td>' +
+      '<td style="text-align:right;vertical-align:middle"><button class="q-btn-sm" onclick="toggleQualityDetails(' + i + ')">Details</button></td>' +
+    '</tr>' +
+    '<tr id="quality-details-' + i + '" style="display:none"><td colspan="6" class="q-details-row">' +
+      '<div class="q-details-content">' +
+        '<div style="font-weight:700;margin-bottom:8px;font-size:13px">Reviewer Comments:</div>' +
+        '<div class="q-comments">"' + (c.comments || 'No comments provided.') + '"</div>' +
+        buildParameterChecklist(c.details) +
+      '</div>' +
+    '</td></tr>';
+  }).join('');
+
+  return '<div class="q-card mt-24">' +
+    '<div class="q-card-title-row">' +
+      '<div class="q-card-title">Case Lookup & Audit Details</div>' +
+      '<div class="q-filters">' +
+        '<input type="text" id="quality-case-search" class="q-search-input" placeholder="Search cases or comments..." onkeyup="searchQualityTable(this.value)">' +
+        '<button class="q-filter-btn active" data-filter="all" onclick="filterQualityTable(\'all\', this)">All</button>' +
+        '<button class="q-filter-btn" data-filter="perfect" onclick="filterQualityTable(\'perfect\', this)">Perfect</button>' +
+        '<button class="q-filter-btn" data-filter="markdown" onclick="filterQualityTable(\'markdown\', this)">Markdowns</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="q-table-container"><table class="q-table" id="quality-case-table"><thead><tr>' +
+      '<th style="text-align:left">Case ID</th><th>Cust</th><th>Bus</th><th>Comp</th><th style="text-align:left">Markdowns</th><th style="text-align:right"></th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+  '</div>';
+}
+
+function searchQualityTable(q) {
+  var table = document.getElementById('quality-case-table');
+  if (!table) return;
+  var rows = table.querySelectorAll('tbody > tr:not(.q-details-row)');
+  var query = q.toLowerCase();
+
+  rows.forEach(function(r) {
+    var idx = r.dataset.index;
+    var caseData = window._currentCaseLog ? window._currentCaseLog[idx] : null;
+    if (!caseData) return;
+    var textMatch = caseData.caseId.toLowerCase().indexOf(query) !== -1 || (caseData.comments || '').toLowerCase().indexOf(query) !== -1;
+    r.style.display = textMatch ? 'table-row' : 'none';
+  });
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(function() {
+    if (typeof showToast === 'function') showToast('Case ID ' + text + ' copied!');
+  });
+}
+
+function filterQualityTable(filter, btn) {
+  var table = document.getElementById('quality-case-table');
+  if (!table) return;
+
+  var btns = btn.parentNode.querySelectorAll('.q-filter-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+
+  var rows = table.querySelectorAll('tbody > tr');
+  rows.forEach(function(row) {
+    if (row.classList.contains('q-details-row') || row.id.indexOf('quality-details-') === 0) {
+       row.style.display = 'none'; // Always close details when filtering
+       return;
+    }
+
+    var hasMarkdown = row.querySelector('.q-markdown-chip') !== null;
+    var isPerfect = row.querySelector('.q-perfect') !== null;
+
+    if (filter === 'all') {
+      row.style.display = 'table-row';
+    } else if (filter === 'perfect') {
+      row.style.display = isPerfect ? 'table-row' : 'none';
+    } else if (filter === 'markdown') {
+      row.style.display = hasMarkdown ? 'table-row' : 'none';
+    }
+  });
+}
+
+function buildParameterChecklist(details) {
+  if (!details) return '';
+  var html = '<div class="q-checklist-grid">';
+
+  var sections = [
+    { title: 'CUSTOMER', color: Q_COLORS.BLUE, data: details.customer },
+    { title: 'BUSINESS', color: Q_COLORS.GREEN, data: details.business },
+    { title: 'COMPLIANCE', color: Q_COLORS.RED, data: details.compliance }
+  ];
+
+  sections.forEach(function(s) {
+    if (!s.data) return;
+    html += '<div><div class="q-checklist-header" style="color:' + s.color + '">' + s.title + '</div>';
+    Object.keys(s.data).forEach(function(k) {
+      var v = s.data[k];
+      var isPass = String(v).toLowerCase() === 'yes';
+      var isFail = String(v).toLowerCase() === 'no';
+      html += '<div class="q-checklist-item ' + (isFail ? 'fail' : '') + '"><span>' + k.replace(/_/g,' ').toLowerCase() + '</span>' +
+              '<span>' + (isPass ? 'PASS' : (isFail ? 'FAIL' : '—')) + '</span></div>';
+    });
+    html += '</div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
+function toggleQualityDetails(idx) {
+  var el = document.getElementById('quality-details-' + idx);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+}
+
+function preWarmQualityCache(month) {
+  if (!month || !APP || !APP.session) return;
+  google.script.run
+    .withSuccessHandler(function(d) {
+       QualityLocalCache.set('agent_' + month + '_' + APP.session.ldap, d);
+    })
+    .clientGetMyQuality('', month);
+}
+
+function exportQualityCSV() {
+  var d = window._qualityAgentData || window._qualityTeamData;
+  if (!d) return;
+
+  var csv = 'Team,Audits,Customer,Business,Compliance,Average\n';
+  if (d.teams) {
+    d.teams.forEach(function(t) {
+      var avg = (t.stats.customer + t.stats.business + t.stats.compliance) / 3;
+      csv += t.teamName + ',' + t.stats.count + ',' + t.stats.customer.toFixed(1) + '%,' + t.stats.business.toFixed(1) + '%,' + t.stats.compliance.toFixed(1) + '%,' + avg.toFixed(1) + '%\n';
+    });
+  }
+
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = window.URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.setAttribute('hidden', '');
+  a.setAttribute('href', url);
+  a.setAttribute('download', 'Quality_Report_' + (window._qualitySelectedMonth || 'export') + '.csv');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+var Q_TARGETS = { CUSTOMER: 95, BUSINESS: 90, COMPLIANCE: 99.5 };
+
+</script>
+
+<style>
+/* ── Apple HIG Quality Dashboard Styles ── */
+.q-container { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Myriad Set Pro", "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--text-primary); }
+
+.q-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.q-page-title { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 12px; letter-spacing: -0.5px; }
+.q-icon-badge { width: 32px; height: 32px; background: #007AFF; border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,122,255,0.3); }
+
+.q-controls { display: flex; align-items: center; gap: 10px; }
+.q-pill-select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 600; cursor: pointer; outline: none; }
+.q-pill-select-sm { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; outline: none; }
+
+.q-tab-row { display: flex; background: var(--surface-2); padding: 4px; border-radius: 12px; margin-bottom: 24px; width: fit-content; border: 1px solid var(--border); }
+.q-tab { display: flex; align-items: center; gap: 8px; padding: 8px 24px; border-radius: 9px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-secondary); transition: all 0.2s ease; }
+.q-tab.active { background: var(--surface); color: var(--text-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.q-tab svg { opacity: 0.7; }
+.q-tab.active svg { color: #007AFF; opacity: 1; }
+
+.q-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.q-apple-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; transition: transform 0.2s ease; }
+.q-apple-card:hover { transform: translateY(-2px); }
+.q-card-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.q-card-value { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; line-height: 1.1; }
+.q-card-status { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.q-card-status.on-target { color: #34C759; }
+.q-card-status.below-target { color: #FF3B30; }
+.q-card-target { font-size: 11px; color: var(--text-hint); font-weight: 500; }
+
+.q-coaching-card { background: linear-gradient(135deg, rgba(0,122,255,0.05), rgba(88,86,214,0.05)); border: 1px solid rgba(0,122,255,0.2); }
+.q-coaching-grid { display: flex; gap: 20px; }
+.q-coaching-item { flex: 1; text-align: center; background: var(--surface); border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
+.q-coaching-score { font-size: 24px; font-weight: 800; color: #FF3B30; margin-bottom: 4px; }
+.q-coaching-name { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: capitalize; }
+
+.q-heatmap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.q-heatmap-item { background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2); padding: 12px; border-radius: 10px; text-align: center; }
+.q-heatmap-count { font-size: 14px; font-weight: 800; color: #FF3B30; }
+.q-heatmap-name { font-size: 11px; font-weight: 600; text-transform: capitalize; color: var(--text-primary); }
+
+.q-score-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.q-chart-grid-radar { display: grid; grid-template-columns: 1.2fr 1.5fr; gap: 16px; margin-bottom: 24px; }
+.q-chart-card { display: flex; flex-direction: column; min-height: 550px; }
+.q-radar-container { flex: 1; min-height: 450px; width: 100%; }
+.q-card-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.q-card-title { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.2px; }
+
+.q-grouped-params { display: flex; flex-direction: column; gap: 24px; flex: 1; overflow-y: auto; padding-right: 8px; }
+.q-param-section { border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+.q-param-section:last-child { border: none; }
+.q-param-header { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; }
+.q-param-list { display: flex; flex-direction: column; gap: 8px; }
+.q-param-row { display: flex; align-items: center; gap: 12px; transition: background 0.2s; padding: 4px; border-radius: 6px; }
+.q-param-row.clickable:hover { background: var(--surface-2); cursor: pointer; }
+.q-param-name { font-size: 12px; font-weight: 600; width: 150px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+.q-param-bar-container { flex: 1; height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; }
+.q-param-bar { height: 100%; border-radius: 4px; transition: width 0.8s ease-in-out; }
+.q-param-val { font-size: 11px; font-weight: 800; width: 35px; text-align: right; font-family: monospace; }
+
+.q-select { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 12px; color: var(--text-primary); font-weight: 500; cursor: pointer; outline: none; }
+.q-search-input { background: var(--surface-3); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 12px; color: var(--text-primary); outline: none; width: 200px; }
+
+.q-filters { display: flex; gap: 8px; background: var(--surface-2); padding: 4px; border-radius: 10px; border: 1px solid var(--border); align-items: center; }
+.q-filter-btn { border: none; background: transparent; padding: 6px 16px; border-radius: 7px; font-size: 12px; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; }
+.q-filter-btn.active { background: var(--surface); color: var(--text-primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+.q-case-id-row { display: flex; align-items: center; gap: 6px; }
+.q-icon-btn { background: transparent; border: none; padding: 2px; border-radius: 4px; cursor: pointer; color: var(--text-hint); transition: all 0.2s; display: flex; }
+.q-icon-btn:hover { background: var(--surface-3); color: #007AFF; }
+
+.q-skeleton { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: q-shimmer 1.5s infinite; border-radius: 16px; }
+@keyframes q-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.q-skeleton-card { height: 120px; }
+.q-skeleton-chart { height: 500px; }
+
+.q-table-container { overflow-x: auto; margin: -10px; padding: 10px; }
+.q-table { width: 100%; border-collapse: collapse; }
+.q-table th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-hint); padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: center; }
+.q-table td { padding: 16px; border-bottom: 1px solid var(--border); text-align: center; font-size: 14px; transition: background 0.1s; }
+.q-table tr:hover td { background: var(--surface-2); cursor: pointer; }
+
+.q-case-link { color: #007AFF; font-weight: 700; text-decoration: none; border-bottom: 1px solid transparent; }
+.q-case-link:hover { border-bottom-color: #007AFF; }
+
+.q-markdown-chip { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; margin: 2px; line-height: 1.4; }
+.q-markdown-chip.cust { background: rgba(0,122,255,0.1); color: #007AFF; }
+.q-markdown-chip.bus { background: rgba(255,149,0,0.1); color: #FF9500; }
+.q-markdown-chip.comp { background: rgba(255,59,48,0.1); color: #FF3B30; }
+.q-perfect { color: #34C759; font-weight: 700; font-size: 12px; }
+
+.q-btn-sm { background: var(--surface-3); border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.2s; }
+.q-btn-sm:hover { background: var(--border-strong); }
+
+.q-details-row { background: var(--surface-2); padding: 0 !important; }
+.q-details-content { padding: 24px; border-left: 4px solid #007AFF; }
+.q-comments { font-size: 14px; line-height: 1.6; color: var(--text-secondary); font-style: italic; margin-bottom: 24px; background: var(--surface); padding: 16px; border-radius: 12px; }
+
+.q-checklist-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+.q-checklist-header { font-size: 12px; font-weight: 800; letter-spacing: 1px; margin-bottom: 12px; border-bottom: 2px solid currentColor; padding-bottom: 4px; }
+.q-checklist-item { display: flex; justify-content: space-between; font-size: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+.q-checklist-item.fail { color: #FF3B30; font-weight: 600; }
+.q-checklist-item span:last-child { font-weight: 800; font-family: monospace; }
+
+.q-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px; gap: 16px; color: var(--text-hint); }
+.q-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: #007AFF; border-radius: 50%; animation: q-spin 0.8s linear infinite; }
+@keyframes q-spin { to { transform: rotate(360deg); } }
+
+.q-empty { text-align: center; padding: 80px 40px; color: var(--text-hint); background: var(--surface-2); border-radius: 20px; border: 2px dashed var(--border); }
+
+@media (max-width: 1400px) {
+  .q-chart-grid-radar { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 1024px) {
+  .q-score-row { grid-template-columns: 1fr 1fr; }
+  .q-chart-grid-radar { grid-template-columns: 1fr; }
+  .q-checklist-grid { grid-template-columns: 1fr; gap: 16px; }
+  .q-filters { flex-direction: column; align-items: stretch; }
+  .q-search-input { width: 100%; }
+}
+</style>
