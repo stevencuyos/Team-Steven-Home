@@ -1,0 +1,34 @@
+body.dark-mode .status-pending { background: rgba(253, 226, 147, 0.15); color: var(--play-yellow); }
+body.dark-mode .status-approved { background: var(--play-green-light); color: var(--play-green); }
+body.dark-mode .status-rejected { background: var(--play-red-light); color: var(--play-red); }
+
+/* Dark: Tier Rankings */
+body.dark-mode .tier-bronze { background: rgba(139, 69, 19, 0.3); color: #e6c2a5; }
+body.dark-mode .tier-silver { background: rgba(154, 160, 166, 0.3); color: #e8eaed; border-color: rgba(255,255,255,0.1); }
+body.dark-mode .tier-gold { background: rgba(184, 134, 11, 0.3); color: #fde293; }
+body.dark-mode .tier-legend { background: rgba(57, 73, 171, 0.3); color: #c5cae9; }
+
+/* Dark: Buttons */
+body.dark-mode .btn-secondary,
+body.dark-mode button:not(.btn-primary):not(#theme-toggle-btn) {
+  background-color: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+body.dark-mode .btn-secondary:hover,
+body.dark-mode button:not(.btn-primary):not(#theme-toggle-btn):hover {
+  background-color: #4a4d51;
+}
+
+/* Dark: Toasts, Links, Nav */
+body.dark-mode .toast { background-color: var(--surface-3); color: var(--text-primary); border: 1px solid var(--border-strong); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+body.dark-mode a { color: var(--play-blue) !important; }
+body.dark-mode .nav-item:hover { background-color: rgba(255,255,255,0.06); }
+body.dark-mode .nav-item.active { background:rgba(255,255,255,0.12);color:#fff; }
+body.dark-mode .hero-cta { background: var(--surface-2); color: var(--play-green); }
+
+/* Dark: XP Bar & Scrollbars */
+body.dark-mode .xp-track { background: rgba(255,255,255,0.1); }
+body.dark-mode ::-webkit-scrollbar-thumb { background: #4c5155 !important; }
+body.dark-mode ::-webkit-scrollbar-thumb:hover { background: #5f6368 !important; }
+body.dark-mode ::-webkit-scrollbar-corner { background: transparent !important; }
