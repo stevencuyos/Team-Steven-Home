@@ -1,0 +1,1559 @@
+<script>
+// ============================================================
+// CsatView Enhanced — Agent / Manager / All-Teams CSAT Dashboard
+// Save this block as CsatView.html in Apps Script and add
+// <?!= include('CsatView') ?> just before </body> in Index.html
+// ============================================================
+
+// ── Entry point ──────────────────────────────────────────────────────────
+function renderCsatView() {
+  var el = document.getElementById('view-csat');
+  el.innerHTML = buildCsatShell();
+
+  // Load available months into picker
+  google.script.run
+    .withSuccessHandler(function(months) {
+      var picker = document.getElementById('csat-month-picker');
+      if (!picker) return;
+      picker.innerHTML = months.map(function(m, i) {
+        return '<option value="' + m + '"' + (i === 0 ? ' selected' : '') + '>' + m + '</option>';
+      }).join('');
+    window._csatSelectedMonth = months[0] || '';
+      switchCsatTab(defaultTab);
+    })
+    .withFailureHandler(function() {
+      switchCsatTab(defaultTab);
+    })
+    .clientGetAvailableCsatMonths();
+
+  var role = APP.session ? APP.session.role : 'agent';
+  var defaultTab = (role === 'manager' || role === 'supervisor') ? 'manager' : 'agent';
+}
+
+function buildCsatShell() {
+  var role = APP.session ? APP.session.role : 'agent';
+  var isMgmt = role === 'manager' || role === 'supervisor';
+  var isManager = role === 'manager';
+
+  var tabs =
+    '<div class="csat-tab-row">' +
+      csatTab('agent',    '👤', 'My Scores',  true) +
+      (isMgmt ? csatTab('manager', '📋', 'My Team') : '') +
+      (isManager ? csatTab('allteams', '🌐', 'All Teams') : '') +
+    '</div>';
+
+  // Manager agent selector dropdown - Enhanced styling
+  var agentSelector = '';
+  if (isMgmt) {
+    agentSelector =
+      '<div id="csat-agent-selector" style="display:none;margin-bottom:16px;padding:14px 16px;' +
+      'background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);' +
+      'display:none;align-items:center;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);' +
+      'transition:all 0.2s ease;">' +
+        '<label style="font-size:12px;font-weight:600;color:var(--text-secondary);' +
+        'text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;">View agent:</label>' +
+        '<select id="csat-agent-picker" onchange="switchCsatAgent(this.value)" ' +
+        'style="flex:1;max-width:280px;height:36px;background:var(--surface-2);' +
+        'color:var(--text-primary);border:1px solid var(--border-strong);' +
+        'border-radius:var(--radius-sm);padding:0 12px;font-size:13px;cursor:pointer;' +
+        'transition:all 0.2s ease;">' +
+          '<option value="">— Select an agent —</option>' +
+        '</select>' +
+        '<span id="csat-agent-status" style="font-size:12px;color:var(--text-hint);' +
+        'transition:all 0.2s ease;"></span>' +
+      '</div>';
+  }
+
+  return '<div id="csat-root">' +
+    '<div class="csat-topbar">' +
+      '<div class="csat-page-title">' +
+        '<div class="csat-play-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="white">' +
+        '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>' +
+        'CSAT Dashboard' +
+      '</div>' +
+      '<div class="csat-controls">' +
+        '<select id="csat-month-picker" class="csat-pill" ' +
+        'onchange="onCsatMonthChange(this.value)" ' +
+        'style="cursor:pointer;padding:6px 12px;min-width:120px;' +
+        'transition:all 0.2s ease;">' +
+          '<option value="">Loading months…</option>' +
+        '</select>' +
+        (isManager ? '<button class="csat-pill csat-btn-refresh" onclick="refreshCsatData()" title="Re-aggregate from source" style="transition:all 0.2s ease;">↻ Refresh</button>' : '') +
+      '</div>' +
+    '</div>' +
+    tabs +
+    agentSelector +
+    '<div id="csat-panel-agent"  class="csat-panel csat-panel-fade"></div>' +
+    '<div id="csat-panel-manager" class="csat-panel csat-panel-fade" style="display:none"></div>' +
+    '<div id="csat-panel-allteams" class="csat-panel csat-panel-fade" style="display:none"></div>' +
+  '</div>';
+}
+
+function csatTab(id, icon, label, active) {
+  return '<div class="csat-vtab' + (active ? ' csat-vtab-on' : '') + '" ' +
+    'id="csat-tab-' + id + '" onclick="switchCsatTab(\'' + id + '\')" ' +
+    'role="tab" aria-selected="' + (active ? 'true' : 'false') + '">' +
+    icon + ' ' + label + '</div>';
+}
+
+function switchCsatTab(id) {
+  var role = APP.session ? APP.session.role : 'agent';
+  var isManager = role === 'manager';
+
+  var tabs = ['agent','manager'];
+  if (isManager) tabs.push('allteams');
+
+  ['agent','manager','allteams'].forEach(function(t) {
+    var panel = document.getElementById('csat-panel-' + t);
+    var tab   = document.getElementById('csat-tab-' + t);
+    if (!panel || !tab) return;
+    var on = t === id;
+    panel.style.display = on ? 'block' : 'none';
+    panel.style.animation = on ? 'fadeIn 0.3s ease' : 'none';
+    tab.classList.toggle('csat-vtab-on', on);
+    tab.setAttribute('aria-selected', on);
+  });
+
+  // Show/hide agent selector only on My Scores tab for managers
+  var selector = document.getElementById('csat-agent-selector');
+  if (selector) {
+    var role = APP.session ? APP.session.role : 'agent';
+    var isMgmt = role === 'manager' || role === 'supervisor';
+    selector.style.display = (id === 'agent' && isMgmt) ? 'flex' : 'none';
+    // Populate dropdown if empty
+    if (id === 'agent' && isMgmt) {
+      populateCsatAgentDropdown();
+    }
+  }
+
+  var panel = document.getElementById('csat-panel-' + id);
+  if (panel && panel.dataset.loaded !== 'true') {
+    panel.dataset.loaded = 'true';
+    loadCsatPanel(id, panel);
+  }
+}
+
+// Populate the agent dropdown for manager view
+function populateCsatAgentDropdown() {
+  var picker = document.getElementById('csat-agent-picker');
+  if (!picker || picker.dataset.loaded === 'true') return;
+  picker.dataset.loaded = 'true';
+
+  google.script.run
+    .withSuccessHandler(function(agents) {
+      picker.innerHTML = '<option value="">— Select an agent —</option>';
+      (agents || []).forEach(function(a) {
+        var opt = document.createElement('option');
+        opt.value = a.ldap;
+        opt.textContent = (a.displayName || a.ldap) + ' (' + a.ldap + ')';
+        picker.appendChild(opt);
+      });
+    })
+    .withFailureHandler(function() {})
+    .clientGetAllAgents();
+}
+
+// Switch My Scores view to show a specific agent's data
+function switchCsatAgent(ldap) {
+  var panel = document.getElementById('csat-panel-agent');
+  var status = document.getElementById('csat-agent-status');
+  if (!panel) return;
+
+  if (!ldap) {
+    // Reset to manager's own scores
+    panel.dataset.loaded = '';
+    panel.innerHTML = '';
+    loadCsatPanel('agent', panel);
+    if (status) status.textContent = '';
+    return;
+  }
+
+  if (status) status.textContent = '⟳ Loading…';
+  panel.innerHTML = '<div class="loading-state"><div class="spinner-enhanced"></div>' +
+    '<span>Loading agent scores…</span></div>';
+
+  google.script.run
+    .withSuccessHandler(function(d) {
+      panel.innerHTML = buildAgentView(d);
+      if (status) status.textContent = '';
+    })
+    .withFailureHandler(function() {
+      showToast('Could not load agent CSAT.', 'error');
+      if (status) status.textContent = '❌ Error loading data.';
+    })
+    .clientGetMyCsat(ldap);
+}
+
+function onCsatMonthChange(month) {
+  window._csatSelectedMonth = month;
+  // Force all panels to reload with new month
+  ['agent','manager','allteams'].forEach(function(t) {
+    var p = document.getElementById('csat-panel-' + t);
+    if (p) { p.dataset.loaded = ''; p.innerHTML = ''; }
+  });
+  // Reload whichever tab is currently active
+  var activeTab = document.querySelector('.csat-vtab-on');
+  if (activeTab) {
+    var id = activeTab.id.replace('csat-tab-','');
+    var panel = document.getElementById('csat-panel-' + id);
+    if (panel) {
+      panel.dataset.loaded = 'true';
+      loadCsatPanel(id, panel);
+    }
+  }
+}
+
+// ── Panel loaders ─────────────────────────────────────────────────────────
+function loadCsatPanel(id, panel) {
+  panel.innerHTML =
+    '<div style="padding:8px 0">' +
+      '<div style="height:120px;background:var(--surface);border:1px solid var(--border);' +
+      'border-radius:var(--radius-md);margin-bottom:10px;animation:shimmer 1.2s infinite;' +
+      'background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 50%,var(--surface-2) 75%);' +
+      'background-size:200% 100%;"></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">' +
+        [1,2,3,4].map(function() {
+          return '<div style="height:80px;border-radius:var(--radius-sm);' +
+          'animation:shimmer 1.2s infinite;' +
+          'background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 50%,var(--surface-2) 75%);' +
+          'background-size:200% 100%;"></div>';
+        }).join('') +
+      '</div>' +
+      '<div style="height:200px;background:var(--surface);border:1px solid var(--border);' +
+      'border-radius:var(--radius-md);animation:shimmer 1.2s infinite;' +
+      'background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 50%,var(--surface-2) 75%);' +
+      'background-size:200% 100%;"></div>' +
+    '</div>';
+  var month = window._csatSelectedMonth || '';
+
+  if (id === 'agent') {
+    var agentPicker = document.getElementById('csat-agent-picker');
+    var agentLdap = agentPicker ? agentPicker.value : '';
+    google.script.run
+      .withSuccessHandler(function(d) { panel.innerHTML = buildAgentView(d); })
+      .withFailureHandler(function(e) { panel.innerHTML = csatError(e); })
+      .clientGetMyCsat(agentLdap, month);
+
+  } else if (id === 'manager') {
+    google.script.run
+      .withSuccessHandler(function(d) { panel.innerHTML = buildManagerView(d); })
+      .withFailureHandler(function(e) { panel.innerHTML = csatError(e); })
+      .clientGetTeamCsat(month);
+
+  } else if (id === 'allteams') {
+    google.script.run
+      .withSuccessHandler(function(d) { panel.innerHTML = buildAllTeamsView(d); })
+      .withFailureHandler(function(e) { panel.innerHTML = csatError(e); })
+      .clientGetAllTeamsCsat(month);
+  }
+}
+
+function refreshCsatData() {
+  showToast('Re-aggregating CSAT data… this may take 30–60 seconds.', 'warning', 5000);
+  var btn = document.querySelector('.csat-btn-refresh');
+  if (btn) btn.style.animation = 'spin 1s linear infinite';
+  
+  google.script.run
+    .withSuccessHandler(function() {
+      showToast('CSAT data refreshed!', 'success');
+      // Reset all panels so they reload fresh
+      ['agent','manager','allteams'].forEach(function(t) {
+        var p = document.getElementById('csat-panel-' + t);
+        if (p) { p.dataset.loaded = ''; p.innerHTML = ''; }
+      });
+      switchCsatTab('agent');
+      if (btn) btn.style.animation = 'none';
+    })
+    .withFailureHandler(function(e) { 
+      showToast('Refresh failed: ' + e.message, 'error');
+      if (btn) btn.style.animation = 'none';
+    })
+    .clientRunCsatAggregation();
+}
+
+// ── AGENT VIEW ──────────────────────────────────────────────────────────
+function buildAgentView(d) {
+  if (!d || !d.hasData) {
+    return '<div class="empty-state enhanced">' +
+      '<div class="empty-state-icon" style="font-size:48px;margin-bottom:12px;">📊</div>' +
+      '<h3>No CSAT data yet</h3>' +
+      '<p>Your scores for ' + (d ? d.month : 'this month') + ' will appear once the CSAT data has been aggregated.</p>' +
+      '<p style="font-size:12px;color:var(--text-hint);margin-top:8px;">💡 Check back soon or contact your manager if you think this is an error.</p>' +
+    '</div>';
+  }
+
+  updateCsatMonthLabel(d.month);
+
+  var statusBg = { on_target: '#e6f4ea', monitor: '#fff8e1', at_risk: '#fce8e6' };
+  var statusColor = { on_target: '#01875f', monitor: '#b8860b', at_risk: '#c0392b' };
+  var statusLabel = { on_target: 'On Target', monitor: 'Monitor', at_risk: '⚠ At Risk' };
+
+  // 1. AVATAR LOGIC
+  var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + d.ldap + '?sz=600&type=PLUS';
+  var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + d.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
+  var avatarHtml = '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="width:100%;height:100%;object-fit:cover;display:block;">';
+
+  // 2. LIVE TARGET & PTG MATH
+  var vChat = d.chatResponses || 0;
+  var vPhone = d.phoneResponses || 0;
+  var vEmail = d.emailResponses || 0;
+  var vTotal = vChat + vPhone + vEmail;
+  
+  var customTarget = vTotal > 0 ? ((84 * vChat) + (86 * vPhone) + (50 * vEmail)) / vTotal : 0;
+  var ptg = customTarget > 0 ? (d.overall / customTarget) * 100 : 0;
+  var ptgColor = ptg >= 100.0 ? '#01875f' : '#c0392b';
+
+  return (
+    // ── Profile card ──
+    '<div class="csat-card csat-agent-hero csat-card-elevated">' +
+      '<div class="csat-agent-avatar" style="padding:0;overflow:hidden;">' + avatarHtml + '</div>' +
+      '<div style="flex:1">' +
+        '<div class="csat-agent-name">' + escHtml(d.displayName || d.ldap) + '</div>' +
+        '<div class="csat-agent-meta">' + escHtml(d.ldap) + ' · Supervisor: ' + escHtml(d.tcLdap) + '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
+          csatStatusChip(d.status) +
+          (d.teamRank ? '<span class="csat-tag">Rank #' + d.teamRank + ' of ' + d.teamSize + ' in team</span>' : '') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // ── LIVE PTG & GOALS WIDGET ──
+    '<div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:20px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">' +
+      '<div>' +
+        '<div style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Live Performance to Goal (PTG)</div>' +
+        '<div style="display:flex; align-items:baseline; gap:8px;">' +
+          '<div style="font-family:\'Google Sans\',sans-serif; font-size:32px; font-weight:700; line-height:1; color:' + ptgColor + ';">' + (vTotal > 0 ? ptg.toFixed(1) + '%' : '—') + '</div>' +
+          '<div style="font-size:13px; font-weight:500; color:var(--text-secondary);">of ' + (vTotal > 0 ? customTarget.toFixed(1) + '%' : '0%') + ' Custom Target</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex; gap:10px;">' +
+        '<div style="background:var(--surface-2); border:1px solid var(--border); padding:10px 14px; border-radius:8px; text-align:center;">' +
+          '<div style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Chat Target</div>' +
+          '<div style="font-size:15px; font-weight:700; color:#4285F4; margin-top:2px;">84%</div>' +
+        '</div>' +
+        '<div style="background:var(--surface-2); border:1px solid var(--border); padding:10px 14px; border-radius:8px; text-align:center;">' +
+          '<div style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Phone Target</div>' +
+          '<div style="font-size:15px; font-weight:700; color:#7c4dff; margin-top:2px;">86%</div>' +
+        '</div>' +
+        '<div style="background:var(--surface-2); border:1px solid var(--border); padding:10px 14px; border-radius:8px; text-align:center;">' +
+          '<div style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Email Target</div>' +
+          '<div style="font-size:15px; font-weight:700; color:#e65100; margin-top:2px;">50%</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // ── Four score cards ──
+    '<div class="csat-score-row">' +
+      buildScoreCard('Overall', d.overall, d.overallResponses, d.delta ? d.delta.overall : null, '#01875f', '✦') +
+      buildScoreCard('Chat', d.chat, d.chatResponses, d.delta ? d.delta.chat : null, '#4285F4', '💬') +
+      buildScoreCard('Phone', d.phone, d.phoneResponses, d.delta ? d.delta.phone : null, '#7c4dff', '📞') +
+      buildScoreCard('Email', d.email, d.emailResponses, d.delta ? d.delta.email : null, '#e65100', '✉️') +
+    '</div>' +
+
+    // ── Me vs team + DSAT themes ──
+    '<div class="csat-two-col">' +
+
+      // Me vs team
+      '<div class="csat-card-sm">' +
+        '<div class="csat-p-title">Me vs team average</div>' +
+        '<div class="csat-legend-row">' +
+          '<div class="csat-leg-item"><div class="csat-leg-dot" style="background:#01875f"></div>My score</div>' +
+          '<div class="csat-leg-item"><div class="csat-leg-dot" style="background:rgba(66,133,244,0.45)"></div>Team avg</div>' +
+        '</div>' +
+        buildVsRow('Overall', d.overall, d.vsTeam ? d.vsTeam.overall : null) +
+        buildVsRow('Chat',    d.chat,    d.vsTeam ? d.vsTeam.chat    : null, '#4285F4') +
+        buildVsRow('Phone',   d.phone,   d.vsTeam ? d.vsTeam.phone   : null, '#7c4dff') +
+        buildVsRow('Email',   d.email,   d.vsTeam ? d.vsTeam.email   : null, '#e65100') +
+      '</div>' +
+
+      // DSAT themes
+      '<div class="csat-card-sm">' +
+        '<div class="csat-p-title">My DSAT themes this month</div>' +
+        buildDsatThemeBars(d.dsatThemes, d.dsatCount) +
+        '<div style="margin-top:10px;font-size:11px;color:var(--color-text-secondary);' +
+        'padding-top:10px;border-top:1px solid var(--border);">' +
+          d.dsatCount + ' DSAT · ' + d.csatCount + ' CSAT · ' + d.totalSurveyed + ' total surveyed' +
+        '</div>' +
+      '</div>' +
+
+    '</div>' +
+
+    // ── Quality metrics strip ──
+    '<div class="csat-card-sm">' +
+      '<div class="csat-p-title">Quality metrics</div>' +
+      '<div class="csat-metrics-strip">' +
+        csatMetricItem(d.casesResolutionRate !== null ? d.casesResolutionRate + '%' : '—', 'Resolution rate', d.casesResolutionRate !== null && d.casesResolutionRate >= 90 ? '#01875f' : 'var(--text-secondary)') +
+        csatMetricItem(d.repeatContactRate  !== null ? d.repeatContactRate  + '%' : '—', 'Repeat contact (7d)', 'var(--text-primary)') +
+        csatMetricItem(d.surveyOfferRate    !== null ? d.surveyOfferRate    + '%' : '—', 'Survey offer rate', 'var(--text-primary)') +
+        csatMetricItem(d.totalCases || '—', 'Total cases handled', 'var(--text-primary)') +
+      '</div>' +
+    '</div>' +
+
+    // ── Case log ──
+    buildCaseLogTable(d.caseLog, 'My Cases This Month') +
+    buildCoachingSection('agent', d.ldap, d.month)
+  );
+}
+
+// ── MANAGER VIEW ─────────────────────────────────────────────────────────
+function buildManagerView(d) {
+  if (!d || d.overall === undefined) {
+    return '<div class="empty-state enhanced"><div class="empty-state-icon" style="font-size:48px;margin-bottom:12px;">📊</div><h3>No team data available.</h3>' +
+    '<p style="color:var(--text-secondary);">Run the CSAT aggregation to see team metrics.</p></div>';
+  }
+
+  updateCsatMonthLabel(d.month);
+
+  var atRisk = d.atRiskCount > 0
+    ? '<div class="csat-risk-strip csat-risk-enhanced">⚠️ <strong>' + d.atRiskCount + ' agent' + (d.atRiskCount > 1 ? 's' : '') +
+      ' below target</strong> — review their DSAT themes and consider a 1:1 coaching session.</div>'
+    : '';
+
+  return (
+    // ── Hero row ──
+    '<div class="csat-hero-row">' +
+      buildHeroCard('Team CSAT',  d.overall, d.overallResponses, d.delta ? d.delta.overall : null, '#01875f', 'hc-ov', '✦') +
+      buildHeroCard('Chat CSAT',  d.chat,    d.chatResponses,    d.delta ? d.delta.chat    : null, '#4285F4', 'hc-ch', '💬') +
+      buildHeroCard('Phone CSAT', d.phone,   d.phoneResponses,   d.delta ? d.delta.phone   : null, '#7c4dff', 'hc-ph', '📞') +
+      buildHeroCard('Email CSAT', d.email,   d.emailResponses,   d.delta ? d.delta.email   : null, '#e65100', 'hc-em', '✉️') +
+    '</div>' +
+
+    // ── Summary strip ──
+    '<div class="csat-strip csat-strip-enhanced">' +
+      csatStripItem(d.totalSurveyed, 'Surveys', 'var(--text-primary)') +
+      '<div class="csat-st-div"></div>' +
+      csatStripItem(d.csatCount, 'CSAT', '#01875f') +
+      '<div class="csat-st-div"></div>' +
+      csatStripItem(d.dsatCount, 'DSAT', '#c0392b') +
+      '<div class="csat-st-div"></div>' +
+      csatStripItem(d.surveyOfferRate !== null ? d.surveyOfferRate + '%' : '—', 'Offer rate', 'var(--text-primary)') +
+      '<div class="csat-st-div"></div>' +
+      csatStripItem(d.atRiskCount, 'At risk', d.atRiskCount > 0 ? '#c0392b' : 'var(--text-secondary)') +
+      '<div class="csat-strip-bar">' +
+        '<div style="font-size:10px;color:var(--text-secondary);margin-bottom:4px">CSAT / DSAT / No survey</div>' +
+        '<div class="csat-stacked">' +
+          (d.totalSurveyed > 0
+            ? '<div class="csat-seg" style="width:' + pctWidth(d.csatCount, d.totalCases) + '%;background:#01875f;opacity:.8"></div>' +
+              '<div class="csat-seg" style="width:' + pctWidth(d.dsatCount, d.totalCases) + '%;background:#c0392b;opacity:.8"></div>'
+            : '') +
+          '<div class="csat-seg" style="flex:1;background:var(--color-background-secondary)"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    atRisk +
+
+    // ── DSAT themes + placeholder for trend ──
+    '<div class="csat-two-col">' +
+      '<div class="csat-card-sm">' +
+        '<div class="csat-p-title">Top DSAT symptoms — team</div>' +
+        buildDsatThemeBars(d.topDsatThemes, d.dsatCount) +
+      '</div>' +
+      '<div class="csat-card-sm">' +
+        '<div class="csat-p-title">Channel breakdown</div>' +
+        buildChannelRows(d) +
+      '</div>' +
+    '</div>' +
+
+    // ── Agent scorecard ──
+    '<div class="csat-card-sm">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
+        '<div class="csat-p-title" style="margin-bottom:0">Agent scorecard</div>' +
+        '<div style="font-size:11px;color:var(--text-secondary)">Sorted by overall CSAT %</div>' +
+      '</div>' +
+      buildAgentScorecard(d.agents) +
+    '</div>' +
+    buildCoachingSection('manager', '', d.month)
+  );
+}
+
+// ── ALL TEAMS VIEW ────────────────────────────────────────────────────────
+function buildAllTeamsView(d) {
+  if (!d || !d.teams || d.teams.length === 0) {
+    return '<div class="empty-state enhanced"><div class="empty-state-icon" style="font-size:48px;margin-bottom:12px;">🌐</div><h3>No cross-team data yet.</h3><p style="color:var(--text-secondary);">Run the CSAT aggregation first.</p></div>';
+  }
+
+  updateCsatMonthLabel(d.month);
+
+  var maxSurveyed = Math.max.apply(null, d.teams.map(function(t) { return t.totalSurveyed || 0; }));
+
+  return (
+    // ── Site summary ──
+    '<div class="csat-at-summary">' +
+      '<div class="csat-at-card" style="border-top:3px solid #01875f">' +
+        '<div class="csat-lbl">Site-wide CSAT</div>' +
+        '<div class="csat-at-val" style="color:#01875f">' + fmtPct(d.siteOverall) + '</div>' +
+        '<div class="csat-at-sub">All teams · ' + escHtml(d.month) + deltaBadge(d.siteDelta) + '</div>' +
+      '</div>' +
+      '<div class="csat-at-card">' +
+        '<div class="csat-lbl">Total surveys</div>' +
+        '<div class="csat-at-val">' + (d.totalSurveyed || 0).toLocaleString() + '</div>' +
+        '<div class="csat-at-sub">Across all teams</div>' +
+      '</div>' +
+      '<div class="csat-at-card">' +
+        '<div class="csat-lbl">Teams tracked</div>' +
+        '<div class="csat-at-val">' + d.teamCount + '</div>' +
+        '<div class="csat-at-sub">' +
+          (d.atRiskTeams > 0 ? '<span style="color:#c0392b">⚠️ ' + d.atRiskTeams + ' at risk</span>' : '✓ All healthy') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // ── Team ranking ──
+    '<div class="csat-two-col">' +
+      '<div class="csat-card-sm">' +
+        '<div class="csat-p-title">Team ranking — overall CSAT %</div>' +
+        '<div class="csat-legend-row" style="margin-bottom:10px">' +
+          '<div class="csat-leg-item"><div class="csat-leg-dot" style="background:#01875f"></div>✓ ≥85% on target</div>' +
+          '<div class="csat-leg-item"><div class="csat-leg-dot" style="background:#f9ab00"></div>⟳ 75–84% monitor</div>' +
+          '<div class="csat-leg-item"><div class="csat-leg-dot" style="background:#c0392b"></div>⚠️ &lt;75% at risk</div>' +
+        '</div>' +
+        d.teams.map(function(t, idx) {
+          var barColor = t.status === 'on_target' ? '#01875f' : t.status === 'monitor' ? '#f9ab00' : '#c0392b';
+          var pctColor = t.status === 'on_target' ? '#01875f' : t.status === 'monitor' ? '#b8860b' : '#c0392b';
+          var statusIcon = t.status === 'on_target' ? '✓' : t.status === 'monitor' ? '⟳' : '⚠️';
+          return '<div class="csat-team-row" style="transition:all 0.2s ease;">' +
+            '<div class="csat-team-rank">' + (idx + 1) + '</div>' +
+            '<div style="flex:1">' +
+              '<div class="csat-team-name">' + statusIcon + ' ' + escHtml(t.teamName) +
+                ' <span class="csat-site-chip">' + escHtml(t.tcLdap) + '</span></div>' +
+              '<div class="csat-team-meta">' + t.agentCount + ' agents · ' + (t.totalSurveyed||0) + ' surveys</div>' +
+            '</div>' +
+            '<div style="width:110px">' +
+              '<div class="csat-bar-track"><div class="csat-bar-fill" style="width:' + (t.overall || 0) + '%;background:' + barColor + ';transition:all 0.3s ease;"></div></div>' +
+              '<div style="display:flex;justify-content:space-between;margin-top:2px">' +
+                '<span style="font-size:12px;font-weight:500;color:' + pctColor + '">' + fmtPct(t.overall) + '</span>' +
+                deltaBadge(t.delta) +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+
+      '<div class="csat-card-sm">' +
+        '<div class="csat-p-title">Channel CSAT by team</div>' +
+        '<div style="overflow-x:auto;">' +
+          '<table class="csat-ch-table csat-table-enhanced"><thead><tr>' +
+            '<th>Team</th>' +
+            '<th style="color:#4285F4">💬 Chat</th>' +
+            '<th style="color:#7c4dff">📞 Phone</th>' +
+            '<th style="color:#e65100">✉️ Email</th>' +
+          '</tr></thead><tbody>' +
+          d.teams.map(function(t, idx) {
+            return '<tr' + (idx % 2 === 0 ? ' class="csat-table-alt"' : '') + '>' +
+              '<td style="font-weight:500">' + escHtml(t.teamName.replace('Team ','')) + '</td>' +
+              '<td>' + csatChip(t.chat) + '</td>' +
+              '<td>' + csatChip(t.phone) + '</td>' +
+              '<td>' + csatChip(t.email) + '</td>' +
+            '</tr>';
+          }).join('') +
+          '</tbody></table>' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+// ── AI COACHING SECTION ───────────────────────────────────────
+function buildCoachingSection(type, ldap, month) {
+  var id = 'coaching-' + type;
+  var now = new Date();
+  var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  
+  return (
+    '<div class="csat-card-sm csat-coaching-card" style="margin-top:12px;border-top:3px solid #4285F4;' +
+    'transition:all 0.3s ease;" id="' + id + '-wrap">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+        '<div style="display:flex;align-items:center;gap:10px;flex:1">' +
+          '<div style="width:32px;height:32px;background:linear-gradient(135deg,#4285F4,#b388ff);' +
+          'border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;' +
+          'box-shadow:0 2px 4px rgba(66, 133, 244, 0.2);">✨</div>' +
+          '<div>' +
+            '<div style="font-size:14px;font-weight:600;color:var(--text-primary)">AI Coaching Insights</div>' +
+            '<div style="font-size:11px;color:var(--text-secondary)">Powered by Gemini · ' + (month || '') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<button onclick="loadCoaching(\'' + type + '\',\'' + (ldap || '') + '\',\'' + (month || '') + '\')" ' +
+        'id="' + id + '-btn" ' +
+        'class="csat-btn-coaching" ' +
+        'style="background:linear-gradient(135deg,#4285F4,#b388ff);color:#fff;border:none;' +
+        'border-radius:20px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;' +
+        'font-family:inherit;display:flex;align-items:center;gap:6px;' +
+        'transition:all 0.2s ease;box-shadow:0 2px 4px rgba(66, 133, 244, 0.25);">' +
+          '✨ Generate Insights' +
+        '</button>' +
+      '</div>' +
+      '<div id="' + id + '-content" style="display:none">' +
+        '<div id="' + id + '-body"></div>' +
+        '<div id="' + id + '-timestamp" style="font-size:10px;color:var(--text-hint);margin-top:8px;' +
+        'padding-top:8px;border-top:1px solid var(--border);text-align:right;"></div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function loadCoaching(type, ldap, month) {
+  var id = 'coaching-' + type;
+  var btn = document.getElementById(id + '-btn');
+  var content = document.getElementById(id + '-content');
+  var body = document.getElementById(id + '-body');
+  var timestamp = document.getElementById(id + '-timestamp');
+
+  if (!btn || !content || !body) return;
+
+  // If already loaded, toggle visibility
+  if (content.dataset.loaded === 'true') {
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    btn.innerHTML = content.style.display === 'none' ? '✨ Show Insights' : '✨ Hide Insights';
+    return;
+  }
+
+  // Show loading state
+  btn.disabled = true;
+  btn.innerHTML = '<span style="display:inline-block;animation:spin .6s linear infinite">⟳</span> Analyzing…';
+  content.style.display = 'block';
+  body.innerHTML =
+    '<div style="display:flex;align-items:center;gap:12px;padding:16px;' +
+    'background:var(--surface-2);border-radius:8px;margin-bottom:8px;' +
+    'border:1px solid var(--border);">' +
+      '<div style="width:32px;height:32px;border:3px solid #4285F4;border-top-color:transparent;' +
+      'border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0"></div>' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:600;color:var(--text-primary)">Gemini is analyzing your data…</div>' +
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">This usually takes 5–10 seconds</div>' +
+      '</div>' +
+    '</div>';
+
+  var handler = function(result) {
+    btn.disabled = false;
+    if (!result.success) {
+      body.innerHTML =
+        '<div style="background:var(--play-red-light);border:1px solid var(--play-red);' +
+        'border-radius:8px;padding:14px;font-size:13px;color:var(--play-red);">' +
+          '⚠️ ' + escHtml(result.error || 'Could not generate insights.') +
+        '</div>';
+      btn.innerHTML = '✨ Retry';
+      btn.disabled = false;
+      return;
+    }
+
+    content.dataset.loaded = 'true';
+    btn.innerHTML = '✨ Hide Insights';
+    body.innerHTML = renderCoachingMarkdown(result.coaching);
+    
+    // Update timestamp
+    var now = new Date();
+    var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    if (timestamp) timestamp.textContent = '⏱️ Generated at ' + timeStr;
+  };
+
+  if (type === 'agent') {
+    google.script.run
+      .withSuccessHandler(handler)
+      .withFailureHandler(function(e) {
+        handler({ success: false, error: e.message });
+      })
+      .clientGetAgentCoaching(ldap || '', month || '');
+  } else {
+    google.script.run
+      .withSuccessHandler(handler)
+      .withFailureHandler(function(e) {
+        handler({ success: false, error: e.message });
+      })
+      .clientGetTeamCoaching(month || '');
+  }
+}
+
+function renderCoachingMarkdown(text) {
+  if (!text) return '';
+  // Convert ## headers into properly opened/closed sections
+  var html = text
+    .replace(/`([^`]+)`/g, '<strong>$1</strong>')                  // stray backticks -> bold, never shown raw
+    .replace(/## (.+)/g, '<div class="coaching-section"><div class="coaching-header">$1</div>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|\s)\*([^\s*][^*]*?)\*(?=\s|$)/g, '$1<em>$2</em>') // stray single-asterisk italics -> <em>
+    .replace(/\* (.+)/g, '<div class="coaching-bullet">• $1</div>')
+    .replace(/- (.+)/g, '<div class="coaching-bullet">• $1</div>')
+    .replace(/\n\n/g, '<br>')
+    .replace(/\n/g, '<br>')
+    + '</div>'; // close the final coaching-section
+
+  return '<div class="coaching-wrap">' + html + '</div>';
+}
+
+// ── SHARED RENDER HELPERS ─────────────────────────────────────────────────
+
+function buildScoreCard(label, pct, responses, deltaVal, color, icon) {
+  var displayPct = fmtPct(pct);
+  var pctColor   = pct === null ? 'var(--color-text-hint)' : pct >= 85 ? '#01875f' : pct >= 75 ? '#b8860b' : '#c0392b';
+  var circumference = 2 * Math.PI * 22; // r=22
+  var strokeOffset  = pct !== null ? circumference * (1 - pct / 100) : circumference;
+
+  return '<div class="csat-score-card csat-score-card-hover" style="--accent:' + color + ';' +
+    'transition:all 0.2s ease;">' +
+    '<div class="csat-lbl">' + label + ' CSAT</div>' +
+    '<div class="csat-gauge-wrap">' +
+      '<svg width="56" height="56" viewBox="0 0 56 56" style="transform:rotate(-90deg)">' +
+        '<circle cx="28" cy="28" r="22" fill="none" stroke="var(--color-background-secondary)" stroke-width="5"/>' +
+        '<circle cx="28" cy="28" r="22" fill="none" stroke="' + color + '" stroke-width="5" ' +
+          'stroke-dasharray="' + circumference.toFixed(1) + '" ' +
+          'stroke-dashoffset="' + strokeOffset.toFixed(1) + '" stroke-linecap="round"' +
+          'style="transition:all 0.6s ease;"/>' +
+      '</svg>' +
+      '<div class="csat-gauge-mid">' + (pct !== null ? Math.round(pct) + '%' : '—') + '</div>' +
+    '</div>' +
+    '<div class="csat-sc-val" style="color:' + pctColor + '">' + displayPct + '</div>' +
+    '<div class="csat-sc-vol">' + (responses || 0) + ' responses</div>' +
+    '<div class="csat-sc-trend">' + deltaBadge(deltaVal) + ' vs prev month</div>' +
+  '</div>';
+}
+
+function buildHeroCard(label, pct, responses, deltaVal, color, cls, icon) {
+  var pctColor = pct === null ? 'var(--color-text-hint)' : pct >= 85 ? '#01875f' : pct >= 75 ? '#b8860b' : '#c0392b';
+  return '<div class="csat-hero-c ' + cls + ' csat-hero-c-hover" style="transition:all 0.2s ease;">' +
+    '<div class="csat-lbl">' + label + '</div>' +
+    '<div class="csat-h-pct" style="color:' + pctColor + '">' + fmtPct(pct) + '</div>' +
+    '<div class="csat-h-vol">' + (responses || 0) + ' responses</div>' +
+    '<div class="csat-h-trend">' + deltaBadge(deltaVal) + ' vs last month</div>' +
+    '<div class="csat-hero-ico">' + icon + '</div>' +
+  '</div>';
+}
+
+function buildVsRow(label, mine, team, accentColor) {
+  accentColor = accentColor || '#01875f';
+  var ahead = mine !== null && team !== null && mine >= team;
+  var myW   = mine !== null ? Math.min(mine, 100) : 0;
+  var tmW   = team !== null ? Math.min(team, 100) : 0;
+  return '<div class="csat-vs-row">' +
+    '<div class="csat-vs-lbl">' + label + '</div>' +
+    '<div class="csat-vs-track">' +
+      '<div style="position:absolute;top:0;left:0;height:100%;width:' + tmW + '%;background:rgba(66,133,244,0.35);border-radius:4px;transition:width 0.6s ease;"></div>' +
+      '<div style="position:absolute;top:0;left:0;height:100%;width:' + myW + '%;background:' + accentColor + ';border-radius:4px;transition:width 0.6s ease;"></div>' +
+    '</div>' +
+    '<div class="csat-vs-pct" style="color:' + (ahead ? '#01875f' : '#c0392b') + '">' +
+      (mine !== null ? mine + '%' : '—') +
+      (team !== null ? '<span style="color:var(--color-text-tertiary);font-weight:400;font-size:9px"> ' + team + '%</span>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+function buildDsatThemeBars(themes, total) {
+  if (!themes || themes.length === 0) {
+    return '<div style="font-size:12px;color:var(--text-secondary);padding:12px 0;' +
+    'text-align:center;font-weight:500;">🎉 No DSAT cases this month</div>';
+  }
+  var maxCount = themes[0].count;
+  return themes.map(function(t) {
+    var barW = maxCount > 0 ? Math.round(t.count / maxCount * 100) : 0;
+    return '<div class="csat-bar-r" style="transition:all 0.2s ease;">' +
+      '<div style="flex:1;font-size:12px;color:var(--text-primary)">' + escHtml(t.symptom) + '</div>' +
+      '<div class="csat-br-track"><div class="csat-br-fill" style="width:' + barW + '%;background:#c0392b;transition:width 0.6s ease;"></div></div>' +
+      '<div class="csat-br-pct">' + t.count + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function buildChannelRows(d) {
+  return [
+    { icon: '💬', label: 'Chat',  pct: d.chat,  resp: d.chatResponses,  color: '#4285F4' },
+    { icon: '📞', label: 'Phone', pct: d.phone, resp: d.phoneResponses, color: '#7c4dff' },
+    { icon: '✉️', label: 'Email', pct: d.email, resp: d.emailResponses, color: '#e65100' }
+  ].map(function(ch) {
+    var pctColor = ch.pct === null ? 'var(--color-text-hint)' : ch.pct >= 85 ? '#01875f' : ch.pct >= 75 ? '#b8860b' : '#c0392b';
+    return '<div class="csat-ch-row" style="transition:all 0.2s ease;">' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<div class="csat-ch-icon" style="background:' + ch.color + '20;color:' + ch.color + ';' +
+        'transition:all 0.2s ease;">' + ch.icon + '</div>' +
+        '<div><div style="font-size:13px;color:var(--text-primary)">' + ch.label + '</div>' +
+          '<div style="font-size:11px;color:var(--text-secondary)">' + (ch.resp || 0) + ' responses</div>' +
+        '</div>' +
+      '</div>' +
+      '<div>' +
+        '<div style="font-size:16px;font-weight:500;color:' + pctColor + '">' + fmtPct(ch.pct) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function buildAgentScorecard(agents) {
+  if (!agents || agents.length === 0) return '<div class="empty-state" style="padding:20px"><h3>No agent data</h3></div>';
+
+  var rows = agents.map(function(a, idx) {
+    var overallChip = csatChip(a.overall);
+    var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=PLUS';
+    var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
+    var borderColor = a.status === 'at_risk' ? '#c0392b' : a.status === 'monitor' ? '#b8860b' : '#01875f';
+    var rowClass = idx % 2 === 0 ? 'csat-table-alt' : '';
+
+    return '<tr class="' + rowClass + ' csat-table-row-hover" style="transition:all 0.2s ease;" ' +
+      'onclick="navigate(\'agent-lookup\',{ldap:\'' + escHtml(a.ldap) + '\'})" ' +
+      'role="button" tabindex="0">' +
+      '<td>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;' +
+          'border:2px solid ' + borderColor + ';transition:all 0.2s ease;">' +
+            '<img src="' + momaP + '" ' +
+            'onerror="this.onerror=null;this.src=\'' + momaF + '\';" ' +
+            'style="width:100%;height:100%;object-fit:cover;display:block;">' +
+          '</div>' +
+          '<span style="font-size:13px;color:var(--text-primary)">' + escHtml(a.displayName || a.ldap) + '</span>' +
+        '</div>' +
+      '</td>' +
+      '<td>' + (a.totalSurveyed || 0) + '</td>' +
+      '<td>' + overallChip + '</td>' +
+      '<td>' + fmtPct(a.chat) + '</td>' +
+      '<td>' + fmtPct(a.phone) + '</td>' +
+      '<td>' + fmtPct(a.email) + '</td>' +
+      '<td style="color:' + (a.dsatCount > 0 ? '#c0392b' : 'var(--color-text-secondary)') + '">' + (a.dsatCount || 0) + '</td>' +
+      '<td>' + csatStatusChip(a.status) + '</td>' +
+      '<td><button class="btn btn-sm btn-secondary csat-btn-cases" style="font-size:10px;padding:4px 8px;' +
+        'transition:all 0.2s ease;" ' +
+        'onclick="event.stopPropagation();toggleAgentCaseLog(\'' + escHtml(a.ldap) + '\')">' +
+        'Cases' +
+      '</button></td>' +
+    '</tr>' +
+    '<tr id="caselog-' + escHtml(a.ldap) + '" style="display:none"><td colspan="9" style="padding:0">' +
+      buildCaseLogTable(a.caseLog, a.displayName + ' — Cases') +
+    '</td></tr>';
+  }).join('');
+
+  return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">' +
+    '<table class="csat-ag-tbl csat-table-enhanced"><thead><tr>' +
+      '<th style="text-align:left">Agent</th>' +
+      '<th>Surveys</th><th>Overall</th><th>Chat</th><th>Phone</th><th>Email</th>' +
+      '<th>DSATs</th><th>Status</th><th></th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+  '</div>';
+}
+
+// ── MICRO COMPONENTS ──────────────────────────────────────────────────────
+function fmtPct(pct) {
+  if (pct === null || pct === undefined) return '—';
+  return pct.toFixed(1) + '%';
+}
+
+function deltaBadge(d) {
+  if (d === null || d === undefined) return '';
+  var color = d > 0 ? '#01875f' : d < 0 ? '#c0392b' : 'var(--color-text-secondary)';
+  var arrow = d > 0 ? '▲' : d < 0 ? '▼' : '→';
+  return '<span style="font-size:10px;color:' + color + ';font-weight:500">' + arrow + ' ' + Math.abs(d).toFixed(1) + 'pp</span>';
+}
+
+function csatChip(pct) {
+  if (pct === null || pct === undefined) return '<span style="font-size:11px;color:var(--color-text-tertiary);font-style:italic">—</span>';
+  var cls = pct >= 85 ? 'csat-cg' : pct >= 75 ? 'csat-cy' : 'csat-cr';
+  return '<span class="csat-chip ' + cls + '" style="transition:all 0.2s ease;">' + fmtPct(pct) + '</span>';
+}
+
+function csatStatusChip(status) {
+  var map = {
+    on_target: ['csat-cg', '✓ On Target'],
+    monitor:   ['csat-cy', '⟳ Monitor'],
+    at_risk:   ['csat-cr', '⚠️ At Risk'],
+    no_data:   ['csat-cn', '— No data']
+  };
+  var m = map[status] || map.no_data;
+  return '<span class="csat-chip ' + m[0] + '" style="transition:all 0.2s ease;" ' +
+  'title="Status: ' + m[1] + '">' + m[1] + '</span>';
+}
+
+function csatMetricItem(val, label, color) {
+  return '<div style="text-align:center;transition:all 0.2s ease;">' +
+    '<div style="font-size:18px;font-weight:500;color:' + color + '">' + val + '</div>' +
+    '<div style="font-size:10px;color:var(--color-text-secondary)">' + label + '</div>' +
+  '</div>';
+}
+
+function csatStripItem(val, label, color) {
+  return '<div class="csat-st-item" style="transition:all 0.2s ease;">' +
+    '<div class="csat-st-val" style="color:' + color + ';transition:color 0.2s ease;">' + val + '</div>' +
+    '<div class="csat-st-lbl">' + label + '</div>' +
+  '</div>';
+}
+
+function pctWidth(part, total) {
+  if (!total) return 0;
+  return Math.min(Math.round(part / total * 100), 100);
+}
+
+function updateCsatMonthLabel(month) {
+  var el = document.getElementById('csat-month-label');
+  if (el && month) el.textContent = month;
+}
+
+function csatError(e) {
+  return '<div class="empty-state enhanced">' +
+    '<div class="empty-state-icon" style="font-size:48px;margin-bottom:12px;">⚠️</div>' +
+    '<h3>Could not load data</h3>' +
+    '<p style="color:var(--text-secondary);margin-bottom:4px;">' + (e && e.message ? escHtml(e.message) : 'An error occurred. Try refreshing.') + '</p>' +
+    '<p style="font-size:12px;color:var(--text-hint);">💡 If the problem persists, contact support.</p>' +
+    '<button class="btn btn-secondary" onclick="renderCsatView()" style="margin-top:16px;">Retry</button>' +
+  '</div>';
+}
+
+function buildCaseLogTable(cases, title) {
+  if (!cases || cases.length === 0) {
+    return '<div class="csat-card-sm"><div class="csat-p-title">' + title + '</div>' +
+      '<div style="font-size:12px;color:var(--text-secondary);padding:12px 0;text-align:center;' +
+      'font-weight:500;">No cases found for this period.</div></div>';
+  }
+
+  var rows = cases.map(function(c, idx) {
+    var satChip = c.satisfaction === 1
+      ? '<span class="csat-chip csat-cg">✓ CSAT</span>'
+      : c.satisfaction === 0
+        ? '<span class="csat-chip csat-cr">✗ DSAT</span>'
+        : '<span class="csat-chip csat-cn">— No survey</span>';
+
+    var score = c.csatScore !== null && c.csatScore !== ''
+      ? '<span style="font-weight:600;color:var(--text-primary)">' + c.csatScore + '</span>'
+      : '<span style="color:var(--text-hint)">—</span>';
+
+    var comment = c.csatComment
+      ? '<span style="font-size:11px;color:var(--text-secondary);font-style:italic">"' + escHtml(c.csatComment) + '"</span>'
+      : '<span style="color:var(--text-hint);font-size:11px">—</span>';
+
+    var rowClass = idx % 2 === 0 ? 'csat-table-alt' : '';
+
+    return '<tr class="' + rowClass + '">' +
+      '<td style="font-weight:500;font-size:12px;width:140px;word-break:break-all">' +
+        (c.caseId
+          ? '<a href="https://cases.connect.corp.google.com/' + escHtml(c.caseId) + '" target="_blank" style="color:var(--play-blue);text-decoration:underline;font-weight:600;">' + escHtml(c.caseId) + '</a>'
+          : '<span style="color:var(--text-hint)">—</span>') +
+      '</td>' +
+      '<td style="font-size:12px;width:80px">' + escHtml(c.channel || '—') + '</td>' +
+      '<td style="font-size:12px;width:180px">' + escHtml(c.symptom || '—') + '</td>' +
+      '<td style="text-align:center;width:60px">' + score + '</td>' +
+      '<td style="text-align:center;width:90px">' + satChip + '</td>' +
+      '<td style="max-width:220px;white-space:normal;word-wrap:break-word">' + comment + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="csat-card-sm" style="margin-top:12px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+      '<div class="csat-p-title" style="margin-bottom:0">' + escHtml(title) + '</div>' +
+      '<div style="font-size:11px;color:var(--text-secondary)">📋 ' + cases.length + ' cases</div>' +
+    '</div>' +
+    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">' +
+      '<table class="csat-ag-tbl csat-table-enhanced">' +
+        '<thead><tr>' +
+          '<th style="text-align:left;width:140px">Case ID</th>' +
+          '<th style="text-align:left;width:80px">Channel</th>' +
+          '<th style="text-align:left;width:180px">Symptom</th>' +
+          '<th style="text-align:center;width:60px">Score</th>' +
+          '<th style="text-align:center;width:90px">Result</th>' +
+          '<th style="text-align:left">Comment</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>' +
+  '</div>';
+}
+
+function toggleAgentCaseLog(ldap) {
+  var row = document.getElementById('caselog-' + ldap);
+  if (!row) return;
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  row.style.animation = 'fadeIn 0.3s ease';
+}
+
+</script>
+
+<style>
+/* ── CSAT Dashboard Enhanced Styles ── */
+#csat-root { font-family: 'DM Sans', sans-serif; }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0%, 100% { background-position: 200% 0; }
+  50% { background-position: -200% 0; }
+}
+
+.csat-panel-fade {
+  animation: fadeIn 0.3s ease;
+}
+
+/* Topbar & Controls */
+.csat-topbar {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 16px;
+}
+
+.csat-page-title {
+  font-size: 18px; font-weight: 600; color: var(--text-primary);
+  display: flex; align-items: center; gap: 10px;
+}
+
+.csat-play-badge {
+  width: 28px; height: 28px; background: linear-gradient(135deg, #01875f, #00695c);
+  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 4px rgba(1, 135, 95, 0.2);
+}
+
+.csat-controls { 
+  display: flex; gap: 8px; align-items: center;
+}
+
+.csat-pill {
+  font-size: 11px; padding: 6px 12px; border-radius: 999px;
+  border: 0.5px solid var(--border-strong); color: var(--text-secondary);
+  background: var(--surface); cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.csat-pill:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.csat-btn-refresh:hover {
+  background: #01875f !important;
+  color: #fff !important;
+  border-color: #01875f !important;
+}
+
+.csat-pill-on { 
+  background: #01875f !important; color: #fff !important; border-color: #01875f !important;
+}
+
+/* Tabs */
+.csat-tab-row {
+  display: flex; border-bottom: 1.5px solid var(--border);
+  margin-bottom: 16px; gap: 0;
+}
+
+.csat-vtab {
+  font-size: 13px; padding: 10px 18px; cursor: pointer;
+  color: var(--text-secondary); border-bottom: 2px solid transparent;
+  margin-bottom: -1.5px; transition: all .2s ease;
+}
+
+.csat-vtab:hover { 
+  color: var(--text-primary); 
+  background: var(--surface);
+}
+
+.csat-vtab-on { 
+  color: #01875f !important; 
+  border-bottom-color: #01875f !important; 
+  font-weight: 600;
+}
+
+/* Cards */
+.csat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 16px; margin-bottom: 12px;
+}
+
+.csat-card-elevated {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: all 0.2s ease;
+}
+
+.csat-card-elevated:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.csat-card-sm {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;
+}
+
+.csat-lbl {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;
+}
+
+.csat-p-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-secondary); margin-bottom: 10px; font-weight: 600;
+}
+
+/* Agent hero */
+.csat-agent-hero { 
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px; border-radius: var(--radius-md);
+}
+
+.csat-agent-avatar {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: linear-gradient(135deg, #e6f4ea, #c8e6c9);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 600; color: #01875f; 
+  border: 3px solid #a5d6a7; flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(1, 135, 95, 0.15);
+}
+
+.csat-agent-name { 
+  font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;
+}
+
+.csat-agent-meta { 
+  font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;
+}
+
+.csat-tag {
+  font-size: 11px; padding: 4px 10px; border-radius: 999px;
+  background: var(--surface-3); color: var(--text-secondary); 
+  border: 0.5px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.csat-tag:hover {
+  background: var(--border);
+}
+
+/* Score row */
+.csat-score-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px;
+}
+
+.csat-score-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 16px; text-align: center;
+  border-top: 3px solid var(--accent);
+  transition: all 0.2s ease;
+}
+
+.csat-score-card-hover:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.csat-gauge-wrap { 
+  position: relative; width: 56px; height: 56px; margin: 0 auto 8px;
+}
+
+.csat-gauge-wrap svg { display: block; }
+
+.csat-gauge-mid {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; font-weight: 600; color: var(--text-primary);
+}
+
+.csat-sc-val  { 
+  font-size: 24px; font-weight: 600; line-height: 1; margin-bottom: 4px;
+}
+
+.csat-sc-vol  { 
+  font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;
+}
+
+.csat-sc-trend { 
+  font-size: 10px; color: var(--text-secondary);
+}
+
+/* Hero row (manager) */
+.csat-hero-row { 
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px;
+}
+
+.csat-hero-c {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 16px; position: relative; overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.csat-hero-c-hover:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.hc-ov { border-top: 3px solid #01875f; }
+.hc-ch { border-top: 3px solid #4285F4; }
+.hc-ph { border-top: 3px solid #7c4dff; }
+.hc-em { border-top: 3px solid #e65100; }
+
+.csat-h-pct  { 
+  font-size: 32px; font-weight: 700; line-height: 1; margin-bottom: 4px;
+}
+
+.csat-h-vol  { 
+  font-size: 11px; color: var(--text-secondary);
+}
+
+.csat-h-trend { 
+  font-size: 10px; margin-top: 6px;
+}
+
+.csat-hero-ico {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 32px; opacity: .08;
+}
+
+/* Summary strip */
+.csat-strip {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 16px;
+  flex-wrap: wrap;
+  transition: all 0.2s ease;
+}
+
+.csat-strip-enhanced {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.csat-st-item { 
+  text-align: center;
+}
+
+.csat-st-val  { 
+  font-size: 18px; font-weight: 700;
+}
+
+.csat-st-lbl  { 
+  font-size: 10px; text-transform: uppercase; letter-spacing: .4px; 
+  color: var(--text-secondary); margin-top: 2px;
+}
+
+.csat-st-div  { 
+  width: 1px; height: 28px; background: var(--border);
+}
+
+.csat-strip-bar { 
+  flex: 1; padding-left: 12px; min-width: 150px;
+}
+
+.csat-stacked { 
+  display: flex; height: 10px; border-radius: 4px; overflow: hidden; gap: 2px;
+}
+
+.csat-seg     { 
+  height: 100%; border-radius: 3px;
+}
+
+/* Risk strip */
+.csat-risk-strip {
+  background: #fff8f8; border: 0.5px solid #f5c6c2;
+  border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;
+  font-size: 13px; color: #c0392b;
+}
+
+.csat-risk-enhanced {
+  box-shadow: 0 1px 3px rgba(192, 57, 43, 0.1);
+}
+
+/* Two col */
+.csat-two-col { 
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
+}
+
+/* Me vs team bars */
+.csat-legend-row { 
+  display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+}
+
+.csat-leg-item   { 
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary);
+}
+
+.csat-leg-dot    { 
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+
+.csat-vs-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+
+.csat-vs-lbl {
+  width: 60px; font-size: 11px; color: var(--text-secondary); font-weight: 500;
+}
+
+.csat-vs-track {
+  flex: 1; height: 20px; background: var(--surface-2); border-radius: 4px;
+  position: relative; overflow: hidden;
+}
+
+.csat-vs-pct {
+  width: 60px; text-align: right; font-size: 12px; font-weight: 500;
+}
+
+/* DSAT bars */
+.csat-bar-r {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+
+.csat-br-track {
+  flex: 1; height: 18px; background: var(--surface-2); border-radius: 3px;
+  overflow: hidden;
+}
+
+.csat-br-fill {
+  height: 100%; background: #c0392b; border-radius: 3px;
+}
+
+.csat-br-pct {
+  width: 30px; text-align: right; font-size: 11px; font-weight: 600; color: var(--text-secondary);
+}
+
+/* Channel rows */
+.csat-ch-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.csat-ch-row:last-child {
+  border-bottom: none;
+}
+
+.csat-ch-row:hover {
+  background: var(--surface-2);
+  padding: 10px 4px;
+}
+
+.csat-ch-icon {
+  width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center;
+  justify-content: center; font-size: 16px; flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+/* Tables */
+.csat-ag-tbl {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+
+.csat-table-enhanced {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.csat-ag-tbl thead {
+  background: var(--surface-2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.csat-ag-tbl th {
+  padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-secondary);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.csat-ag-tbl td {
+  padding: 12px; border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.csat-table-alt {
+  background: var(--surface-2);
+}
+
+.csat-table-row-hover:hover {
+  background: var(--surface-3) !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.csat-ch-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.csat-ch-table thead {
+  background: var(--surface-2);
+}
+
+.csat-ch-table th, .csat-ch-table td {
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.csat-ch-table th:first-child, .csat-ch-table td:first-child {
+  text-align: left;
+}
+
+/* Chips */
+.csat-chip {
+  display: inline-block; padding: 4px 10px; border-radius: 12px;
+  font-size: 11px; font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.csat-cg { background: #e6f4ea; color: #01875f; }
+.csat-cy { background: #fff8e1; color: #b8860b; }
+.csat-cr { background: #fce8e6; color: #c0392b; }
+.csat-cn { background: var(--surface-2); color: var(--text-secondary); }
+
+.csat-chip:hover {
+  transform: scale(1.05);
+}
+
+/* Metrics strip */
+.csat-metrics-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+
+/* Team rows */
+.csat-team-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.csat-team-row:hover {
+  padding: 10px 4px;
+}
+
+.csat-team-rank {
+  width: 28px; height: 28px; background: #01875f; color: #fff;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 12px; flex-shrink: 0;
+}
+
+.csat-team-name {
+  font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px;
+}
+
+.csat-team-meta {
+  font-size: 11px; color: var(--text-secondary);
+}
+
+.csat-site-chip {
+  background: var(--surface-2); color: var(--text-secondary); 
+  padding: 2px 6px; border-radius: 4px; font-size: 10px;
+  margin-left: 6px; font-weight: 500;
+}
+
+.csat-bar-track {
+  height: 8px; background: var(--surface-2); border-radius: 4px;
+  overflow: hidden;
+}
+
+.csat-bar-fill {
+  height: 100%; border-radius: 4px;
+}
+
+/* All teams summary */
+.csat-at-summary {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px;
+}
+
+.csat-at-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 16px;
+  border-top: 3px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.csat-at-card:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.csat-at-val {
+  font-size: 32px; font-weight: 700; line-height: 1; margin: 8px 0;
+}
+
+.csat-at-sub {
+  font-size: 12px; color: var(--text-secondary);
+}
+
+/* Coaching Section */
+.csat-coaching-card {
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.02), rgba(179, 136, 255, 0.02));
+}
+
+.csat-btn-coaching {
+  transition: all 0.3s ease;
+}
+
+.csat-btn-coaching:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(66, 133, 244, 0.3) !important;
+}
+
+.csat-btn-coaching:active {
+  transform: translateY(0);
+}
+
+.coaching-wrap {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px;
+  line-height: 1.6;
+}
+
+.coaching-section {
+  margin-bottom: 12px;
+}
+
+.coaching-header {
+  font-size: 13px; font-weight: 700; color: #4285F4;
+  margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px;
+}
+
+.coaching-bullet {
+  margin-bottom: 6px; color: var(--text-secondary); font-size: 12px;
+}
+
+/* Loading states */
+.loading-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 40px 20px; text-align: center;
+}
+
+.spinner-enhanced {
+  width: 40px; height: 40px; border: 3px solid var(--border);
+  border-top-color: #4285F4; border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+/* Empty states */
+.empty-state {
+  text-align: center; padding: 40px 20px;
+  background: var(--surface); border: 1px dashed var(--border);
+  border-radius: var(--radius-md); margin: 20px 0;
+}
+
+.empty-state.enhanced {
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--border);
+  padding: 48px 20px;
+}
+
+.empty-state h3 {
+  font-size: 16px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;
+}
+
+.empty-state-icon {
+  font-size: 42px; margin-bottom: 12px; display: block;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .csat-score-row { grid-template-columns: repeat(2, 1fr); }
+  .csat-hero-row { grid-template-columns: repeat(2, 1fr); }
+  .csat-two-col { grid-template-columns: 1fr; }
+  .csat-at-summary { grid-template-columns: repeat(2, 1fr); }
+  .csat-metrics-strip { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .csat-topbar { flex-direction: column; gap: 12px; align-items: flex-start; }
+  .csat-controls { width: 100%; }
+  .csat-score-row { grid-template-columns: 1fr; }
+  .csat-hero-row { grid-template-columns: 1fr; }
+  .csat-at-summary { grid-template-columns: 1fr; }
+  .csat-agent-hero { flex-direction: column; text-align: center; }
+  .csat-metrics-strip { grid-template-columns: 1fr; }
+}
+
+</style>
