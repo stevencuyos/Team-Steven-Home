@@ -94,7 +94,7 @@ function initQualityWithMonths(months) {
     return '<option value="' + m + '"' + (i === 0 ? ' selected' : '') + '>' + m + '</option>';
   }).join('');
 
-  window._qualitySelectedMonth = months[0] || '';
+  APP.state.qualitySelectedMonth = months[0] || '';
   var role = (APP && APP.session) ? APP.session.role : 'agent';
   var defaultTab = (role === 'manager' || role === 'supervisor') ? 'manager' : 'agent';
 
@@ -176,7 +176,7 @@ function switchQualityTab(id) {
   }
 
   var panel = document.getElementById('quality-panel-' + id);
-  var month = window._qualitySelectedMonth || '';
+  var month = APP.state.qualitySelectedMonth || '';
 
   var cacheKey = id + '_' + month;
   if (id === 'agent') {
@@ -269,7 +269,7 @@ function switchQualityAgent(ldap) {
     return;
   }
 
-  var month = window._qualitySelectedMonth || '';
+  var month = APP.state.qualitySelectedMonth || '';
   var cacheKey = 'agent_' + month + '_' + ldap;
   var cached = QualityLocalCache.get(cacheKey);
   if (cached) {
@@ -287,7 +287,7 @@ function switchQualityAgent(ldap) {
 }
 
 function onQualityMonthChange(month) {
-  window._qualitySelectedMonth = month;
+  APP.state.qualitySelectedMonth = month;
   ['agent','manager','allteams'].forEach(function(t) {
     var p = document.getElementById('quality-panel-' + t);
     if (p) { p.dataset.loaded = ''; }
@@ -302,7 +302,7 @@ function onQualityMonthChange(month) {
 function loadQualityPanel(id, panel) {
   if (!panel) return;
   panel.innerHTML = buildSkeletonView();
-  var month = window._qualitySelectedMonth || '';
+  var month = APP.state.qualitySelectedMonth || '';
 
   if (id === 'agent') {
     var agentPicker = document.getElementById('quality-agent-picker');
@@ -457,7 +457,7 @@ function filterByParameter(paramName) {
   var rows = table.querySelectorAll('tbody > tr:not(.q-details-row)');
   rows.forEach(function(r) {
     var idx = r.dataset.index;
-    var caseData = window._currentCaseLog ? window._currentCaseLog[idx] : null;
+    var caseData = APP.state.currentCaseLog ? APP.state.currentCaseLog[idx] : null;
     if (!caseData) return;
 
     // Check if parameter is 'no' in any critical group (using uppercase keys from service)
@@ -518,7 +518,7 @@ function renderQualityCharts(d) {
   };
   new ApexCharts(document.querySelector("#quality-radar-chart"), radarOptions).render();
 
-  window._qualityAgentData = d;
+  APP.state.qualityAgentData = d;
   renderTrendChart('quality-trend-chart', d.trends.daily);
 }
 
@@ -556,7 +556,7 @@ function renderTrendChart(elId, data) {
 }
 
 function toggleTrendView(viewType, granularity) {
-  var d = viewType === 'agent' ? window._qualityAgentData : window._qualityTeamData;
+  var d = viewType === 'agent' ? APP.state.qualityAgentData : APP.state.qualityTeamData;
   var elId = viewType === 'agent' ? 'quality-trend-chart' : 'team-trend-chart';
   if (!d || !d.trends) return;
   renderTrendChart(elId, d.trends[granularity]);
@@ -658,7 +658,7 @@ function renderTeamQualityCharts(d) {
 
   new ApexCharts(document.querySelector("#team-quality-bar-chart"), options).render();
 
-  window._qualityTeamData = d;
+  APP.state.qualityTeamData = d;
   renderTrendChart('team-trend-chart', d.trends.weekly);
 }
 
@@ -744,7 +744,7 @@ function renderAllTeamsQualityChart(d) {
 
 function buildQualityCaseLogTable(cases) {
   if (!cases || cases.length === 0) return '';
-  window._currentCaseLog = cases;
+  APP.state.currentCaseLog = cases;
 
   var rows = cases.map(function(c, i) {
     var custMarkdowns = Object.keys(c.details.customer).filter(function(k) { return String(c.details.customer[k]).toLowerCase() === 'no'; });
@@ -804,7 +804,7 @@ function searchQualityTable(q) {
 
   rows.forEach(function(r) {
     var idx = r.dataset.index;
-    var caseData = window._currentCaseLog ? window._currentCaseLog[idx] : null;
+    var caseData = APP.state.currentCaseLog ? APP.state.currentCaseLog[idx] : null;
     if (!caseData) return;
     var textMatch = caseData.caseId.toLowerCase().indexOf(query) !== -1 || (caseData.comments || '').toLowerCase().indexOf(query) !== -1;
     r.style.display = textMatch ? 'table-row' : 'none';
@@ -888,7 +888,7 @@ function preWarmQualityCache(month) {
 }
 
 function exportQualityCSV() {
-  var d = window._qualityAgentData || window._qualityTeamData;
+  var d = APP.state.qualityAgentData || APP.state.qualityTeamData;
   if (!d) return;
 
   var csv = 'Team,Audits,Customer,Business,Compliance,Average\n';
@@ -904,7 +904,7 @@ function exportQualityCSV() {
   var a = document.createElement('a');
   a.setAttribute('hidden', '');
   a.setAttribute('href', url);
-  a.setAttribute('download', 'Quality_Report_' + (window._qualitySelectedMonth || 'export') + '.csv');
+  a.setAttribute('download', 'Quality_Report_' + (APP.state.qualitySelectedMonth || 'export') + '.csv');
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
