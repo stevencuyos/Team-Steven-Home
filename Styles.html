@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Play Ops Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <?!= include('Styles') ?>
+</head>
+<body>
+
+<div id="app">
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 20.5v-17c0-.83 1-.99 1.46-.48l14 8.5a.5.5 0 010 .96l-14 8.5C4 21.49 3 21.33 3 20.5z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="sidebar-logo-text">Play Ops Store</div>
+        <div class="sidebar-logo-sub">Team Steven</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Menu</div>
+      <div class="nav-item active" data-view="home" onclick="navigate('home')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span>Home</span>
+      </div>
+      <div class="nav-item" data-view="browse" onclick="navigate('browse')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+        <span>Browse Tasks</span>
+      </div>
+      <div class="nav-item" data-view="leaderboard" onclick="navigate('leaderboard')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/></svg>
+        <span>Leaderboard</span>
+      </div>
+      <div class="nav-item" data-view="profile" onclick="navigate('profile')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <span>My Profile</span>
+      </div>
+      <div class="nav-item" data-view="kudos" onclick="navigate('kudos')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        <span>Submit Kudos</span>
+      </div>
+      <div class="nav-item" data-view="notifications" onclick="navigate('notifications')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <span>Notifications</span>
+        <span class="nav-badge hidden" id="sidebar-notif-count"></span>
+      </div>
+    </div>
+
+    <div class="sidebar-section" id="manager-nav" style="display:none">
+      <div class="sidebar-section-label">Manager</div>
+      <div class="nav-item" data-view="task-manager" onclick="navigate('task-manager')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
+        <span>Task Manager</span>
+      </div>
+      <div class="nav-item" data-view="kudos-queue" onclick="navigate('kudos-queue')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-2.18c.07-.44.18-.88.18-1.34C18 2.54 16.5 1 14.67 1c-1.12 0-2.08.56-2.67 1.39L12 3l-.67-.95C10.75 1.25 9.73.85 8.6 1 6.9 1.24 5.65 2.88 5.65 4.66 5.65 5.12 5.76 5.56 5.83 6H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-8 12H6v-2h6v2zm0-4H6v-2h6v2zm0-4H6V8h6v2zm0-4H8.93c-.34 0-.62-.21-.74-.52-.25-.66.19-1.31.88-1.35.42-.02.8.19 1 .52l.93 1.35zm6 12h-4v-6h4v6zm0-8h-4V8h4v2zm0-4h-.93L14 5.85c.2-.33.58-.54 1-.52.69.04 1.13.69.88 1.35-.12.31-.4.52-.74.52H10.07z"/></svg>
+        <span>Kudos Queue</span>
+        <span class="nav-badge hidden" id="kudos-queue-count"></span>
+      </div>
+      <div class="nav-item" data-view="demerit-entry" onclick="navigate('demerit-entry')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        <span>Demerit Entry</span>
+      </div>
+      <div class="nav-item" data-view="analytics" onclick="navigate('analytics')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+        <span>Team Analytics</span>
+      </div>
+      <div class="nav-item" data-view="agent-lookup" onclick="navigate('agent-lookup')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <span>Agent Lookup</span>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar-initial"></div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name" id="sidebar-user-name">Loading...</div>
+        <div class="sidebar-user-role" id="sidebar-user-role">agent</div>
+      </div>
+    </div>
+  </nav>
+
+  <div id="main">
+    <header id="header">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+          <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+        </svg>
+      </button>
+      <div class="header-title" id="header-title">Home</div>
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search tasks..." autocomplete="off">
+      </div>
+      <div class="header-actions">
+        <button class="notif-btn" onclick="toggleNotifDropdown()" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+          </svg>
+          <span class="notif-count" id="notif-count"></span>
+        </button>
+        <div class="header-avatar" id="header-avatar" onclick="navigate('profile')" title="My Profile"></div>
+      </div>
+    </header>
+
+    <div class="notif-dropdown" id="notif-dropdown">
+      <div class="notif-header">
+        <h3>Notifications</h3>
+        <span class="notif-mark-read" onclick="markAllRead()">Mark all as read</span>
+      </div>
+      <div class="notif-list" id="notif-list">
+        <div class="loading-state"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div class="view active" id="view-home"></div>
+      <div class="view" id="view-browse"></div>
+      <div class="view" id="view-leaderboard"></div>
+      <div class="view" id="view-profile"></div>
+      <div class="view" id="view-kudos"></div>
+      <div class="view" id="view-notifications"></div>
+      <div class="view" id="view-task-detail"></div>
+      <div class="view" id="view-task-manager"></div>
+      <div class="view" id="view-kudos-queue"></div>
+      <div class="view" id="view-demerit-entry"></div>
+      <div class="view" id="view-analytics"></div>
+      <div class="view" id="view-agent-lookup"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<div class="modal-overlay" id="modal-confirm-demerit">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">⚠️ Confirm Demerit</div>
+      <button class="modal-close" onclick="closeModal('modal-confirm-demerit')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="modal-confirm-demerit-msg" style="font-size:14px;color:var(--text-secondary);margin-bottom:20px"></p>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-danger" style="flex:1" id="modal-confirm-demerit-btn">Confirm</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-confirm-demerit')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+var APP = {
+  session: null,
+  currentView: 'home',
+  notifOpen: false,
+  notifications: [],
+  unreadCount: 0
+};
+
+var VIEW_TITLES = {
+  'home':'Home','browse':'Browse Tasks','leaderboard':'Leaderboard',
+  'profile':'My Profile','kudos':'Submit Kudos','notifications':'Notifications',
+  'task-detail':'Task Details','task-manager':'Task Manager','kudos-queue':'Kudos Queue',
+  'demerit-entry':'Demerit Entry','analytics':'Team Analytics','agent-lookup':'Agent Lookup'
+};
+
+window.addEventListener('DOMContentLoaded', function() {
+  loadSession();
+  setupSearch();
+  document.addEventListener('click', handleOutsideClick);
+  if (localStorage.getItem('sidebarCollapsed') === 'true') {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+});
+
+function toggleSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('collapsed');
+  localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+}
+
+function loadSession() {
+  google.script.run
+    .withSuccessHandler(function(session) {
+      APP.session = session;
+      applySession(session);
+      loadNotifications();
+      renderView('home');
+    })
+    .withFailureHandler(function(err) { showToast('Failed to load session: ' + err.message, 'error'); })
+    .getSessionInfo();
+}
+
+function applySession(session) {
+  var initial = (session.displayName || session.ldap).charAt(0).toUpperCase();
+  document.getElementById('sidebar-avatar-initial').textContent = initial;
+  document.getElementById('sidebar-user-name').textContent = session.displayName || session.ldap;
+  document.getElementById('sidebar-user-role').textContent = session.role;
+  document.getElementById('header-avatar').textContent = initial;
+  if (session.role === 'manager') {
+    document.getElementById('manager-nav').style.display = 'block';
+  }
+}
+
+function navigate(view, data) {
+  closeNotifDropdown();
+  document.querySelectorAll('.nav-item').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.view === view);
+  });
+  document.getElementById('header-title').textContent = VIEW_TITLES[view] || view;
+  document.querySelectorAll('.view').forEach(function(el) { el.classList.remove('active'); });
+  var viewEl = document.getElementById('view-' + view);
+  if (viewEl) viewEl.classList.add('active');
+  APP.currentView = view;
+  renderView(view, data);
+}
+
+function renderView(view, data) {
+  switch(view) {
+    case 'home':          renderHome(); break;
+    case 'browse':        renderBrowse(data); break;
+    case 'leaderboard':   renderLeaderboard(); break;
+    case 'profile':       renderProfile(data); break;
+    case 'kudos':         renderKudosForm(); break;
+    case 'notifications': renderNotificationsPage(); break;
+    case 'task-detail':   renderTaskDetail(data); break;
+    case 'task-manager':  renderTaskManager(); break;
+    case 'kudos-queue':   renderKudosQueue(); break;
+    case 'demerit-entry': renderDemeritEntry(); break;
+    case 'analytics':     renderAnalytics(); break;
+    case 'agent-lookup':  renderAgentLookup(data); break;
+  }
+}
+
+function loadNotifications() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      APP.notifications = result.notifications;
+      APP.unreadCount = result.unreadCount;
+      updateNotifBadge();
+      renderNotifDropdown();
+    })
+    .withFailureHandler(function() {})
+    .clientGetNotifications();
+}
+
+function updateNotifBadge() {
+  var countEl = document.getElementById('notif-count');
+  var sidebarEl = document.getElementById('sidebar-notif-count');
+  if (APP.unreadCount > 0) {
+    var label = APP.unreadCount > 99 ? '99+' : String(APP.unreadCount);
+    countEl.textContent = label; countEl.classList.add('visible');
+    sidebarEl.textContent = label; sidebarEl.classList.remove('hidden');
+  } else {
+    countEl.classList.remove('visible'); sidebarEl.classList.add('hidden');
+  }
+}
+
+function toggleNotifDropdown() {
+  APP.notifOpen = !APP.notifOpen;
+  document.getElementById('notif-dropdown').classList.toggle('open', APP.notifOpen);
+  if (APP.notifOpen) loadNotifications();
+}
+
+function closeNotifDropdown() {
+  APP.notifOpen = false;
+  document.getElementById('notif-dropdown').classList.remove('open');
+}
+
+function handleOutsideClick(e) {
+  if (APP.notifOpen) {
+    var dropdown = document.getElementById('notif-dropdown');
+    var bell = document.querySelector('.notif-btn');
+    if (!dropdown.contains(e.target) && !bell.contains(e.target)) closeNotifDropdown();
+  }
+}
+
+function renderNotifDropdown() {
+  var list = document.getElementById('notif-list');
+  if (!APP.notifications || APP.notifications.length === 0) {
+    list.innerHTML = '<div class="notif-empty">You\'re all caught up! 🎉</div>';
+    return;
+  }
+  list.innerHTML = APP.notifications.map(function(n) {
+    return '<div class="notif-item ' + (n.isRead ? '' : 'unread') + '" onclick="handleNotifClick(\'' + n.id + '\')">' +
+      '<div class="notif-icon">' + n.icon + '</div>' +
+      '<div class="notif-content"><div class="notif-msg">' + escHtml(n.message) + '</div>' +
+      '<div class="notif-time">' + n.createdAt + '</div></div></div>';
+  }).join('');
+}
+
+function handleNotifClick(notifId) { closeNotifDropdown(); }
+
+function markAllRead() {
+  google.script.run
+    .withSuccessHandler(function() {
+      APP.unreadCount = 0;
+      APP.notifications.forEach(function(n) { n.isRead = true; });
+      updateNotifBadge(); renderNotifDropdown();
+      if (APP.currentView === 'notifications') renderNotificationsPage();
+    })
+    .withFailureHandler(function() {})
+    .clientMarkNotificationsRead();
+}
+
+function setupSearch() {
+  var input = document.getElementById('search-input');
+  var timer;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    var q = input.value.trim();
+    if (!q) return;
+    timer = setTimeout(function() { navigate('browse', { searchQuery: q }); }, 400);
+  });
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { clearTimeout(timer); var q = input.value.trim(); if (q) navigate('browse', { searchQuery: q }); }
+  });
+}
+
+function showToast(message, type, duration) {
+  var container = document.getElementById('toast-container');
+  var toast = document.createElement('div');
+  toast.className = 'toast ' + (type || '');
+  toast.innerHTML = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : '') + escHtml(message);
+  container.appendChild(toast);
+  setTimeout(function() {
+    toast.style.opacity = '0'; toast.style.transform = 'translateX(20px)';
+    toast.style.transition = 'all .25s ease';
+    setTimeout(function() { toast.remove(); }, 250);
+  }, duration || 3500);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getCategoryColor(category) {
+  var colors = {'General':'#4285F4','Quality':'#01875f','Compliance':'#e65100','Training':'#7c4dff','Operations':'#f9ab00','Teamwork':'#00897b','Admin':'#5f6368'};
+  return colors[category] || '#4285F4';
+}
+
+function getTierClass(tier) { return 'tier-' + (tier || 'bronze').toLowerCase(); }
+function getDifficultyClass(difficulty) { return 'difficulty-' + (difficulty || 'easy').toLowerCase(); }
+function renderTierBadge(tier) { return '<span class="tier-badge ' + getTierClass(tier) + '">' + (tier || 'Bronze') + '</span>'; }
+
+function setLoading(viewId, message) {
+  document.getElementById('view-' + viewId).innerHTML =
+    '<div class="loading-state"><div class="spinner"></div><span>' + (message || 'Loading...') + '</span></div>';
+}
+
+function renderTaskCardHtml(task) {
+  var catColor = getCategoryColor(task.category);
+  var urgencyClass = 'urgency-' + (task.urgency || 'normal');
+  var deadlineText = task.deadline || 'No deadline';
+  var btnHtml = '';
+  if (task.agentStatus === 'Completed') {
+    btnHtml = '<div class="task-status-chip status-completed">✓ Completed</div>';
+  } else if (task.agentStatus === 'In Progress') {
+    btnHtml = '<div class="task-status-chip status-inprogress">● In Progress</div>';
+  } else if (task.status === 'Expired' || task.urgency === 'expired') {
+    btnHtml = '<div class="task-status-chip status-completed" style="cursor:not-allowed; opacity:0.7;">Task Expired</div>';
+  } else {
+    btnHtml = '<button class="task-status-chip status-available">▶ Claim Task</button>';
+  }
+  return '<div class="task-card" onclick="navigate(\'task-detail\', {taskId:\'' + task.id + '\'})">' +
+    '<div class="task-card-top">' +
+    '<div class="task-points">' + task.basePoints + '<span> pts</span></div>' +
+    '<span class="task-difficulty ' + getDifficultyClass(task.difficulty) + '">' + (task.difficulty || 'Easy') + '</span>' +
+    '</div>' +
+    '<div class="task-title">' + escHtml(task.title) + '</div>' +
+    '<div class="task-category" style="background:' + catColor + '20;color:' + catColor + '">' + escHtml(task.category) + '</div>' +
+    '<div class="task-meta ' + urgencyClass + '">' +
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>' +
+    deadlineText + '</div>' + btnHtml + '</div>';
+}
+</script>
+
+<?!= include('AgentApp') ?>
+<?!= include('ManagerApp') ?>
+
+</body>
+</html>
