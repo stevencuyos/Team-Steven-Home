@@ -1,0 +1,50 @@
+  --play-red-light: rgba(242, 139, 130, 0.15);
+  background-color: var(--surface-2);
+  color: var(--text-primary);
+}
+
+/* Dark: Glassmorphism */
+body.dark-mode #header {
+  background: rgba(32, 33, 36, 0.75) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+body.dark-mode .notif-dropdown {
+  background: rgba(48, 49, 52, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+body.dark-mode .modal, body.dark-mode .modal-content {
+  background: rgba(32, 33, 36, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Dark: Cards & Surfaces */
+body.dark-mode .stat-card, body.dark-mode .leaderboard-table, body.dark-mode .task-card, body.dark-mode .modal-content {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+body.dark-mode .lb-row, body.dark-mode .task-list-header { border-bottom-color: var(--border); }
+body.dark-mode .lb-row:hover, body.dark-mode .task-card:hover { background-color: rgba(255,255,255,0.05); }
+body.dark-mode .task-card:hover, body.dark-mode .category-tile:hover, body.dark-mode .badge-card:hover {
+  box-shadow: 0 12px 24px rgba(0,0,0,0.4) !important;
+}
+
+/* Dark: Inputs */
+body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
+  background-color: var(--surface-2);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+body.dark-mode input:focus, body.dark-mode select:focus, body.dark-mode textarea:focus {
+  border-color: var(--play-blue);
+  box-shadow: 0 0 0 2px var(--play-blue-light);
+}
+
+/* Dark: Difficulty Chips */
+body.dark-mode .difficulty-easy { background: var(--play-green-light); color: var(--play-green); }
+body.dark-mode .difficulty-medium { background: rgba(253, 226, 147, 0.15); color: var(--play-yellow); }
+body.dark-mode .difficulty-hard { background: var(--play-red-light); color: var(--play-red); }
+
+/* Dark: Status Badges */
