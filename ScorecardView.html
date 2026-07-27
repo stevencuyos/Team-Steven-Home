@@ -1,0 +1,835 @@
+<script>
+// ============================================================
+// ScorecardView — Enhanced Performance Scorecard
+// Mirrors the CSAT dashboard architecture
+// ============================================================
+
+// Targets (mirrors backend SCORECARD_TARGETS)
+var SC_TARGETS = {
+  chatAht:        1200,
+  phoneAht:        820,
+  chatSla:          90,
+  phoneSla:         90,
+  emailSla:         90,
+  surveyOfferRate:  85,
+  repeatContact:    10
+};
+
+function renderScorecardView() {
+  var el = document.getElementById('view-scorecard');
+  el.innerHTML = buildScorecardShell();
+
+  google.script.run
+    .withSuccessHandler(function(months) {
+      var picker = document.getElementById('sc-month-picker');
+      if (!picker) return;
+      if (!months || months.length === 0) {
+        picker.innerHTML = '<option value="">— No months found —</option>';
+        return;
+      }
+      picker.innerHTML = months.map(function(m, i) {
+        return '<option value="' + m + '"' + (i === 0 ? ' selected' : '') + '>' + m + '</option>';
+      }).join('');
+      window._scSelectedMonth = months[0] || '';
+      // Default tab based on role
+      var role = APP.session ? APP.session.role : 'agent';
+      switchScorecardTab((role === 'manager' || role === 'supervisor') ? 'team' : 'agent');
+    })
+    .withFailureHandler(function() {
+      switchScorecardTab('agent');
+    })
+    .clientGetAvailableAhtMonths();
+}
+
+function buildScorecardShell() {
+  var role = APP.session ? APP.session.role : 'agent';
+  var isMgmt = role === 'manager' || role === 'supervisor';
+
+  var tabs =
+    '<div class="sc-tab-row">' +
+      scTab('agent', '👤', 'My Scorecard', true) +
+      (isMgmt ? scTab('team', '📋', 'Team Scorecard') : '') +
+    '</div>';
+
+  var agentSelector = isMgmt ?
+    '<div id="sc-agent-selector" style="display:none; margin-bottom:16px; padding:12px 16px;' +
+    'background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md);' +
+    'align-items:center; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">' +
+      '<label style="font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.5px; white-space:nowrap;">View agent:</label>' +
+      '<select id="sc-agent-picker" onchange="switchScorecardAgent(this.value)" ' +
+      'style="flex:1; max-width:280px; height:36px; background:var(--surface-2); color:var(--text-primary); border:1px solid var(--border-strong); border-radius:var(--radius-sm); padding:0 12px; font-size:13px; cursor:pointer;">' +
+        '<option value="">— Select an agent —</option>' +
+      '</select>' +
+      '<span id="sc-agent-status" style="font-size:12px; color:var(--text-hint);"></span>' +
+    '</div>' : '';
+
+  return '<div id="sc-root" style="font-family:\'DM Sans\',sans-serif;">' +
+    '<div class="sc-topbar">' +
+      '<div class="sc-page-title">' +
+        '<div class="sc-badge">📊</div>' +
+        'Performance Scorecard' +
+      '</div>' +
+      '<div style="display:flex; gap:8px; align-items:center;">' +
+        '<select id="sc-month-picker" class="sc-pill" onchange="onScorecardMonthChange(this.value)">' +
+          '<option value="">Loading months…</option>' +
+        '</select>' +
+      '</div>' +
+    '</div>' +
+    tabs +
+    agentSelector +
+    '<div id="sc-panel-agent"  class="sc-panel"></div>' +
+    '<div id="sc-panel-team"   class="sc-panel" style="display:none;"></div>' +
+  '</div>';
+}
+
+function scTab(id, icon, label, active) {
+  return '<div class="sc-tab' + (active ? ' sc-tab-on' : '') + '" ' +
+    'id="sc-tab-' + id + '" onclick="switchScorecardTab(\'' + id + '\')">' +
+    icon + ' ' + label + '</div>';
+}
+
+function switchScorecardTab(id) {
+  var role = APP.session ? APP.session.role : 'agent';
+  var isMgmt = role === 'manager' || role === 'supervisor';
+
+  ['agent', 'team'].forEach(function(t) {
+    var panel = document.getElementById('sc-panel-' + t);
+    var tab   = document.getElementById('sc-tab-'   + t);
+    if (!panel || !tab) return;
+    var on = t === id;
+    panel.style.display = on ? 'block' : 'none';
+    tab.classList.toggle('sc-tab-on', on);
+  });
+
+  // Agent selector visibility
+  var selector = document.getElementById('sc-agent-selector');
+  if (selector) {
+    selector.style.display = (id === 'agent' && isMgmt) ? 'flex' : 'none';
+    if (id === 'agent' && isMgmt) populateScorecardAgentDropdown();
+  }
+
+  var panel = document.getElementById('sc-panel-' + id);
+  if (panel && panel.dataset.loaded !== 'true') {
+    panel.dataset.loaded = 'true';
+    loadScorecardPanel(id, panel);
+  }
+}
+
+function populateScorecardAgentDropdown() {
+  var picker = document.getElementById('sc-agent-picker');
+  if (!picker || picker.dataset.loaded === 'true') return;
+  picker.dataset.loaded = 'true';
+  google.script.run
+    .withSuccessHandler(function(agents) {
+      picker.innerHTML = '<option value="">— Select an agent —</option>';
+      (agents || []).forEach(function(a) {
+        var opt = document.createElement('option');
+        opt.value = a.ldap;
+        opt.textContent = (a.displayName || a.ldap) + ' (' + a.ldap + ')';
+        picker.appendChild(opt);
+      });
+    })
+    .withFailureHandler(function() {})
+    .clientGetAllAgents();
+}
+
+function switchScorecardAgent(ldap) {
+  var panel  = document.getElementById('sc-panel-agent');
+  var status = document.getElementById('sc-agent-status');
+  if (!panel) return;
+  if (!ldap) {
+    panel.dataset.loaded = '';
+    panel.innerHTML = '';
+    loadScorecardPanel('agent', panel);
+    if (status) status.textContent = '';
+    return;
+  }
+  if (status) status.textContent = '⟳ Loading…';
+  renderScorecardLoading(panel);
+  var month = window._scSelectedMonth || '';
+  google.script.run
+    .withSuccessHandler(function(d) {
+      panel.innerHTML = buildAgentScorecardHtml(d);
+      if (status) status.textContent = '';
+    })
+    .withFailureHandler(function() {
+      showToast('Could not load agent scorecard.', 'error');
+      if (status) status.textContent = '❌ Error';
+    })
+    .clientGetAgentScorecard(ldap, month);
+}
+
+function onScorecardMonthChange(month) {
+  window._scSelectedMonth = month;
+  ['agent', 'team'].forEach(function(t) {
+    var p = document.getElementById('sc-panel-' + t);
+    if (p) { p.dataset.loaded = ''; p.innerHTML = ''; }
+  });
+  var activeTab = document.querySelector('.sc-tab-on');
+  if (activeTab) {
+    var id = activeTab.id.replace('sc-tab-', '');
+    var panel = document.getElementById('sc-panel-' + id);
+    if (panel) { panel.dataset.loaded = 'true'; loadScorecardPanel(id, panel); }
+  }
+}
+
+function renderScorecardLoading(panel) {
+  panel.innerHTML =
+    '<div style="padding:8px 0">' +
+      [1,2,3].map(function() {
+        return '<div style="height:100px; background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 50%,var(--surface-2) 75%); background-size:200% 100%; border-radius:var(--radius-md); margin-bottom:10px; animation:sc-shimmer 1.2s infinite;"></div>';
+      }).join('') +
+    '</div>';
+}
+
+function loadScorecardPanel(id, panel) {
+  renderScorecardLoading(panel);
+  var month = window._scSelectedMonth || '';
+
+  if (id === 'agent') {
+    var role = APP.session ? APP.session.role : 'agent';
+    var isMgmt = role === 'manager' || role === 'supervisor';
+    var agentPicker = document.getElementById('sc-agent-picker');
+    var agentLdap = (isMgmt && agentPicker) ? agentPicker.value : '';
+
+    google.script.run
+      .withSuccessHandler(function(d) { panel.innerHTML = buildAgentScorecardHtml(d); })
+      .withFailureHandler(function(e) { panel.innerHTML = scError(e); })
+      .clientGetAgentScorecard(agentLdap, month);
+  } else {
+    google.script.run
+      .withSuccessHandler(function(d) { panel.innerHTML = buildTeamScorecardHtml(d); })
+      .withFailureHandler(function(e) { panel.innerHTML = scError(e); })
+      .clientGetTeamScorecard(month);
+  }
+}
+
+// ── AGENT SCORECARD VIEW ──────────────────────────────────────────────────
+function buildAgentScorecardHtml(d) {
+  if (!d || !d.hasData) {
+    return '<div class="sc-empty">' +
+      '<div style="font-size:48px; margin-bottom:12px;">📊</div>' +
+      '<h3>No scorecard data yet</h3>' +
+      '<p>Data for ' + (d ? d.period : 'this period') + ' will appear once your performance data has been loaded.</p>' +
+    '</div>';
+  }
+
+  var blendedColor = scPtgColor(d.blendedPtg);
+
+  // Avatar
+  var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + d.ldap + '?sz=600&type=PLUS';
+  var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + d.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
+  var avatarHtml = '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="width:100%;height:100%;object-fit:cover;display:block;">';
+
+  var agentProfile = APP.session || {};
+  var displayName = d.ldap;
+  try { if (window._profileCache && window._profileCache.ldap === d.ldap) displayName = window._profileCache.displayName || d.ldap; } catch(e) {}
+
+  return (
+    // ── Hero Profile Card ──────────────────────────────────────
+    '<div class="sc-card sc-agent-hero">' +
+      '<div class="sc-avatar">' + avatarHtml + '</div>' +
+      '<div style="flex:1;">' +
+        '<div class="sc-agent-name">' + escHtml(d.ldap) + '</div>' +
+        '<div class="sc-agent-meta">' + escHtml(d.ldap) + ' · Supervisor: ' + escHtml(d.supervisor || '—') + '</div>' +
+        '<div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
+          scPtgChip(d.blendedPtg) +
+          '<span class="sc-tag">Period: ' + escHtml(d.period) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // ── Blended PTG Banner ─────────────────────────────────────
+    '<div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:20px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">' +
+      '<div>' +
+        '<div style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Blended AHT — Performance to Goal</div>' +
+        '<div style="display:flex; align-items:baseline; gap:10px;">' +
+          '<div style="font-family:\'Google Sans\',sans-serif; font-size:36px; font-weight:700; color:' + blendedColor + ';">' + (d.blendedPtg !== null ? d.blendedPtg + '%' : '—') + '</div>' +
+          '<div style="font-size:13px; color:var(--text-secondary);">of goal &nbsp;·&nbsp; Actual: <strong>' + scFmtTime(d.blendedAht) + '</strong> &nbsp;·&nbsp; Target: <strong>' + scFmtTime(d.blendedTarget) + '</strong></div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex; gap:10px; flex-wrap:wrap;">' +
+        scTargetChip('Chat', scFmtTime(SC_TARGETS.chatAht), '#4285F4') +
+        scTargetChip('Phone', scFmtTime(SC_TARGETS.phoneAht), '#7c4dff') +
+      '</div>' +
+    '</div>' +
+
+    // ── AHT Cards ─────────────────────────────────────────────
+    '<div class="sc-three-col" style="margin-bottom:12px;">' +
+      buildAhtCard2('Blended AHT', d.blendedAht, d.blendedTarget, d.totalVolume, '#01875f') +
+      buildAhtCard2('Chat AHT', d.chatAht, SC_TARGETS.chatAht, d.totalChats, '#4285F4') +
+      buildAhtCard2('Phone AHT', d.phoneAht, SC_TARGETS.phoneAht, d.incomingPhone, '#7c4dff') +
+    '</div>' +
+
+    // ── Phone Decomposition + SLA ──────────────────────────────
+    '<div class="sc-two-col" style="margin-bottom:12px;">' +
+
+      // Phone decomp
+      '<div class="sc-card-sm">' +
+        '<div class="sc-p-title">📞 Phone AHT Breakdown</div>' +
+        (d.phoneAht ? (
+          buildDecompRow('Talk Time',  d.phoneTalkTime, '#01875f') +
+          buildDecompRow('Wait Time',  d.phoneWaitTime, '#f9ab00') +
+          buildDecompRow('Hold Time',  d.phoneHoldTime, '#e65100') +
+          buildDecompRow('After Call Work', d.phoneAcw, '#7c4dff') +
+          '<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border); font-size:11px; color:var(--text-secondary);">' +
+            'Total Phone AHT: <strong>' + scFmtTime(d.phoneAht) + '</strong> from ' + (d.incomingPhone || 0) + ' calls' +
+          '</div>'
+        ) : '<div style="font-size:12px; color:var(--text-secondary); text-align:center; padding:16px;">No phone data this period.</div>') +
+      '</div>' +
+
+      // SLA Panel
+      '<div class="sc-card-sm">' +
+        '<div class="sc-p-title">⚡ Service Level Agreement (SLA)</div>' +
+        buildSlaRow('💬 Chat SLA', d.chatSla, SC_TARGETS.chatSla, '#4285F4') +
+        buildSlaRow('📞 Phone SLA', d.phoneSla, SC_TARGETS.phoneSla, '#7c4dff') +
+        buildSlaRow('✉️ Email SLA', d.emailSla, SC_TARGETS.emailSla, '#e65100') +
+      '</div>' +
+
+    '</div>' +
+
+    // ── Volume + Quality Metrics ───────────────────────────────
+    '<div class="sc-card-sm" style="margin-bottom:12px;">' +
+      '<div class="sc-p-title">📦 Volume & Quality Metrics</div>' +
+      '<div class="sc-metrics-grid">' +
+        scMetricTile('💬', 'Chat Interactions', d.totalChats || 0, '', 'var(--text-primary)') +
+        scMetricTile('📞', 'Phone Calls', d.incomingPhone || 0, '', 'var(--text-primary)') +
+        scMetricTile('✉️', 'Emails', d.incomingEmail || 0, '', 'var(--text-primary)') +
+        scMetricTile('📋', 'Cases Closed', d.netCasesClosed || 0, '', 'var(--play-green)') +
+        scMetricTile('📊', 'Survey Offer Rate', d.surveyOfferRate !== null ? d.surveyOfferRate + '%' : '—', d.surveyOfferRate !== null && d.surveyOfferRate >= SC_TARGETS.surveyOfferRate ? '✓' : '↓', d.surveyOfferRate !== null && d.surveyOfferRate >= SC_TARGETS.surveyOfferRate ? '#01875f' : '#c0392b') +
+        scMetricTile('🔁', 'Repeat Contact (7d)', d.repeatContact !== null ? d.repeatContact + '%' : '—', d.repeatContact !== null && d.repeatContact <= SC_TARGETS.repeatContact ? '✓' : '↑', d.repeatContact !== null && d.repeatContact <= SC_TARGETS.repeatContact ? '#01875f' : '#c0392b') +
+      '</div>' +
+    '</div>' +
+
+    // ── Top Symptoms ───────────────────────────────────────────
+    '<div class="sc-card-sm" style="margin-bottom:12px;">' +
+      '<div class="sc-p-title">🔍 Top Case Symptoms This Period</div>' +
+      buildSymptomBars(d.topSymptoms, d.netCasesClosed || d.totalVolume) +
+    '</div>' +
+
+    // ── AI Coaching ────────────────────────────────────────────
+    buildScorecardCoachingSection('agent', d.ldap, d.period)
+  );
+}
+
+// ── TEAM SCORECARD VIEW ───────────────────────────────────────────────────
+function buildTeamScorecardHtml(d) {
+  if (!d || !d.success || !d.agents || d.agents.length === 0) {
+    return '<div class="sc-empty">' +
+      '<div style="font-size:48px; margin-bottom:12px;">📋</div>' +
+      '<h3>No team data available.</h3>' +
+      '<p style="color:var(--text-secondary);">Make sure agents are listed in your managed LDAPs and data is uploaded for this month.</p>' +
+    '</div>';
+  }
+
+  var teamColor = scPtgColor(d.teamBlendedPtg);
+
+  var atRiskBanner = d.atRiskCount > 0
+    ? '<div style="background:#fff8f8; border:0.5px solid #f5c6c2; border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:12px; font-size:13px; color:#c0392b; box-shadow:0 1px 3px rgba(192,57,43,0.1);">⚠️ <strong>' + d.atRiskCount + ' agent' + (d.atRiskCount > 1 ? 's' : '') + ' above AHT target</strong> — review their breakdown and schedule a coaching session.</div>'
+    : '';
+
+  return (
+    // ── Team Summary Cards ────────────────────────────────────
+    '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px;">' +
+      buildTeamSummaryCard('Team Blended PTG', d.teamBlendedPtg !== null ? d.teamBlendedPtg + '%' : '—', 'AHT performance to goal', teamColor) +
+      buildTeamSummaryCard('Team Blended AHT', scFmtTime(d.teamBlendedAht), 'target: ' + scFmtTime(d.teamBlendedTarget), d.teamBlendedPtg >= 100 ? '#01875f' : '#c0392b') +
+      buildTeamSummaryCard('Total Interactions', (d.teamChatVol + d.teamPhoneVol).toLocaleString(), d.teamChatVol + ' chat · ' + d.teamPhoneVol + ' phone', 'var(--text-primary)') +
+      buildTeamSummaryCard('Cases Closed', (d.teamCases || 0).toLocaleString(), 'across ' + d.agentCount + ' agents', 'var(--play-green)') +
+    '</div>' +
+
+    atRiskBanner +
+
+    // ── Agent Scorecard Table ─────────────────────────────────
+    '<div class="sc-card-sm" style="margin-bottom:12px;">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">' +
+        '<div class="sc-p-title" style="margin-bottom:0;">Agent AHT Scorecard</div>' +
+        '<div style="font-size:11px; color:var(--text-secondary);">Sorted by Blended PTG %</div>' +
+      '</div>' +
+      buildTeamAgentTable(d.agents) +
+    '</div>' +
+
+    // ── Team AI Coaching ──────────────────────────────────────
+    buildScorecardCoachingSection('team', '', d.period)
+  );
+}
+
+// ── BUILD HELPERS ─────────────────────────────────────────────────────────
+
+function buildAhtCard2(label, val, target, volume, color) {
+  var isGood = val !== null && target ? val <= target : null;
+  var pct    = val !== null && target ? Math.min(Math.round(val / target * 100), 150) : 0;
+  var ptg    = val !== null && target ? parseFloat((target / val * 100).toFixed(1)) : null;
+  var valColor = val === null ? 'var(--text-hint)' : (isGood ? '#01875f' : '#c0392b');
+
+  // Gauge: lower is better, so invert the visual fill
+  var gaugeFill = val !== null && target ? Math.min(Math.round(target / val * 100), 100) : 0;
+  var circumference = 2 * Math.PI * 22;
+  var strokeOffset  = circumference * (1 - gaugeFill / 100);
+
+  return '<div class="sc-aht-card" style="border-top:3px solid ' + color + ';">' +
+    '<div class="sc-lbl">' + label + '</div>' +
+    '<div style="position:relative; width:60px; height:60px; margin:8px auto;">' +
+      '<svg width="60" height="60" viewBox="0 0 56 56" style="transform:rotate(-90deg);">' +
+        '<circle cx="28" cy="28" r="22" fill="none" stroke="var(--surface-2)" stroke-width="5"/>' +
+        '<circle cx="28" cy="28" r="22" fill="none" stroke="' + color + '" stroke-width="5" ' +
+          'stroke-dasharray="' + circumference.toFixed(1) + '" stroke-dashoffset="' + strokeOffset.toFixed(1) + '" stroke-linecap="round"/>' +
+      '</svg>' +
+      '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:var(--text-primary);">' +
+        (ptg !== null ? ptg + '%' : '—') +
+      '</div>' +
+    '</div>' +
+    '<div style="font-size:22px; font-weight:700; color:' + valColor + '; text-align:center;">' + scFmtTime(val) + '</div>' +
+    '<div style="font-size:11px; color:var(--text-secondary); text-align:center;">target: ' + scFmtTime(target) + '</div>' +
+    '<div style="font-size:11px; color:var(--text-hint); text-align:center; margin-top:4px;">' + (volume || 0) + ' interactions</div>' +
+    (isGood !== null ? '<div style="font-size:11px; font-weight:600; color:' + (isGood ? '#01875f' : '#c0392b') + '; text-align:center; margin-top:6px;">' + (isGood ? '✓ On target' : '↑ Over target') + '</div>' : '') +
+  '</div>';
+}
+
+function buildDecompRow(label, val, color) {
+  return '<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">' +
+    '<div style="width:10px; height:10px; border-radius:50%; background:' + color + '; flex-shrink:0;"></div>' +
+    '<div style="flex:1; font-size:12px; color:var(--text-primary);">' + label + '</div>' +
+    '<div style="font-size:13px; font-weight:600; color:' + color + ';">' + scFmtTime(val) + '</div>' +
+  '</div>';
+}
+
+function buildSlaRow(label, val, target, color) {
+  var isGood = val !== null && val >= target;
+  var barW   = val !== null ? Math.min(val, 100) : 0;
+  var valColor = val === null ? 'var(--text-hint)' : (isGood ? '#01875f' : '#c0392b');
+  return '<div style="margin-bottom:12px;">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">' +
+      '<span style="font-size:12px; color:var(--text-primary);">' + label + '</span>' +
+      '<span style="font-size:13px; font-weight:600; color:' + valColor + ';">' + (val !== null ? val + '%' : '—') + '</span>' +
+    '</div>' +
+    '<div style="height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden;">' +
+      '<div style="height:100%; width:' + barW + '%; background:' + color + '; border-radius:4px; transition:width 0.6s ease;"></div>' +
+    '</div>' +
+    '<div style="font-size:10px; color:var(--text-hint); margin-top:2px;">target: ' + target + '%</div>' +
+  '</div>';
+}
+
+function scMetricTile(icon, label, val, badge, color) {
+  return '<div style="background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:14px; text-align:center; transition:all 0.2s ease;">' +
+    '<div style="font-size:20px; margin-bottom:6px;">' + icon + '</div>' +
+    '<div style="font-size:18px; font-weight:700; color:' + color + ';">' + val + (badge ? ' <span style="font-size:11px;">' + badge + '</span>' : '') + '</div>' +
+    '<div style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.4px; margin-top:3px;">' + label + '</div>' +
+  '</div>';
+}
+
+function buildSymptomBars(symptoms, totalCases) {
+  if (!symptoms || symptoms.length === 0) {
+    return '<div class="sc-empty" style="padding:20px; border:none;"><div style="font-size:24px; margin-bottom:8px;">🔍</div><div style="font-size:12px; color:var(--text-secondary);">No symptom data available for this period.</div></div>';
+  }
+  
+  var max = symptoms[0].count;
+  var html = '<div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">';
+  
+  symptoms.forEach(function(s, idx) {
+    var barW = max > 0 ? Math.round(s.count / max * 100) : 0;
+    var pctOfTotal = totalCases > 0 ? Math.round((s.count / totalCases) * 100) : 0;
+    var rankColor = idx === 0 ? '#c0392b' : idx === 1 ? '#e65100' : idx === 2 ? '#f9ab00' : 'var(--text-hint)';
+    
+    html += '<div style="display:flex; align-items:center; gap:12px; background:var(--surface-2); padding:10px 14px; border-radius:8px; border:1px solid var(--border); transition:transform 0.2s ease;" onmouseover="this.style.transform=\'translateX(4px)\'" onmouseout="this.style.transform=\'translateX(0)\'">' +
+      '<div style="font-size:14px; font-weight:700; color:' + rankColor + '; width:16px; text-align:center;">' + (idx + 1) + '</div>' +
+      '<div style="flex:1; min-width:0;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">' +
+          '<span style="font-size:13px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escHtml(s.symptom) + '">' + escHtml(s.symptom) + '</span>' +
+          '<div style="display:flex; align-items:center; gap:8px;">' +
+            (pctOfTotal > 0 ? '<span style="font-size:11px; color:var(--text-secondary);">' + pctOfTotal + '% of total</span>' : '') +
+            '<span style="background:var(--surface); border:1px solid var(--border-strong); padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; color:var(--play-blue);">' + s.count + ' cases</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="height:6px; background:var(--surface); border-radius:3px; overflow:hidden;">' +
+          '<div style="height:100%; width:' + barW + '%; background:linear-gradient(90deg, #4285F4, #7c4dff); border-radius:3px;"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  
+  html += '</div>';
+  return html;
+}
+
+function buildTeamSummaryCard(label, val, sub, color) {
+  return '<div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; border-top:3px solid ' + color + '; transition:all 0.2s ease;">' +
+    '<div style="font-size:10px; text-transform:uppercase; letter-spacing:.6px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">' + label + '</div>' +
+    '<div style="font-family:\'Google Sans\',sans-serif; font-size:28px; font-weight:700; color:' + color + '; line-height:1; margin-bottom:4px;">' + val + '</div>' +
+    '<div style="font-size:11px; color:var(--text-hint);">' + sub + '</div>' +
+  '</div>';
+}
+
+function buildTeamAgentTable(agents) {
+  if (!agents || agents.length === 0) return '<div class="sc-empty" style="padding:20px;"><h3>No agent data.</h3></div>';
+
+  var rows = agents.map(function(a, idx) {
+    var momaP = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=PLUS';
+    var momaF = 'https://moma-teams-photos.corp.google.com/photos/' + a.ldap + '?sz=600&type=SECURITY&type=SILHOUETTE';
+    var borderColor = a.status === 'at_risk' ? '#c0392b' : a.status === 'monitor' ? '#b8860b' : '#01875f';
+    var rowClass = idx % 2 === 0 ? 'sc-table-alt' : '';
+    var ptgColor = scPtgColor(a.blendedPtg);
+
+    return '<tr class="' + rowClass + ' sc-table-row-hover" ' +
+      'onclick="navigate(\'agent-lookup\',{ldap:\'' + escHtml(a.ldap) + '\'})" ' +
+      'style="cursor:pointer;">' +
+      '<td>' +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+          '<div style="width:30px; height:30px; border-radius:50%; overflow:hidden; border:2px solid ' + borderColor + '; flex-shrink:0;">' +
+            '<img src="' + momaP + '" onerror="this.onerror=null;this.src=\'' + momaF + '\';" style="width:100%;height:100%;object-fit:cover;">' +
+          '</div>' +
+          '<span style="font-size:13px; font-weight:600;">' + escHtml(a.displayName || a.ldap) + '</span>' +
+        '</div>' +
+      '</td>' +
+      '<td style="font-size:13px; font-weight:700; color:' + ptgColor + ';">' + (a.blendedPtg !== null ? a.blendedPtg + '%' : '—') + '</td>' +
+      '<td style="font-size:13px; font-weight:600;">' + scFmtTime(a.blendedAht) + '</td>' +
+      '<td style="font-size:13px;">' + scFmtTime(a.chatAht) + '</td>' +
+      '<td style="font-size:13px;">' + scFmtTime(a.phoneAht) + '</td>' +
+      '<td style="font-size:12px; color:var(--text-secondary);">' + (a.chatVolume || 0) + ' / ' + (a.phoneVolume || 0) + '</td>' +
+      '<td style="font-size:12px;">' + (a.chatSla !== null && a.chatSla !== undefined ? a.chatSla + '%' : '—') + '</td>' +
+      '<td style="font-size:12px;">' + (a.phoneSla !== null && a.phoneSla !== undefined ? a.phoneSla + '%' : '—') + '</td>' +
+      '<td>' + scStatusChip(a.status) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div style="overflow-x:auto;">' +
+    '<table class="sc-table"><thead><tr>' +
+      '<th style="text-align:left;">Agent</th>' +
+      '<th>PTG %</th>' +
+      '<th>Blended AHT</th>' +
+      '<th>Chat AHT</th>' +
+      '<th>Phone AHT</th>' +
+      '<th>Chat / Phone Vol</th>' +
+      '<th>Chat SLA</th>' +
+      '<th>Phone SLA</th>' +
+      '<th>Status</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+  '</div>';
+}
+
+// ── AI COACHING SECTION ───────────────────────────────────────────────────
+function buildScorecardCoachingSection(type, ldap, period) {
+  var id = 'sc-coaching-' + type;
+  return (
+    '<div class="sc-card-sm sc-coaching-card" id="' + id + '-wrap">' +
+      '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">' +
+        '<div style="display:flex; align-items:center; gap:10px; flex:1;">' +
+          '<div style="width:32px; height:32px; background:linear-gradient(135deg,#4285F4,#b388ff); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; box-shadow:0 2px 4px rgba(66,133,244,0.2);">✨</div>' +
+          '<div>' +
+            '<div style="font-size:14px; font-weight:600; color:var(--text-primary);">' + (type === 'team' ? 'Team AI Coaching (SMART)' : 'AI Performance Insights') + '</div>' +
+            '<div style="font-size:11px; color:var(--text-secondary);">Powered by Groq · ' + (period || '') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<button onclick="loadScorecardCoaching(\'' + type + '\',\'' + escHtml(ldap || '') + '\',\'' + escHtml(period || '') + '\')" ' +
+        'id="' + id + '-btn" ' +
+        'style="background:linear-gradient(135deg,#4285F4,#b388ff); color:#fff; border:none; border-radius:20px; padding:8px 20px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:6px; transition:all 0.2s ease; box-shadow:0 2px 4px rgba(66,133,244,0.25);">' +
+          '✨ ' + (type === 'team' ? 'Generate SMART Report' : 'Generate Insights') +
+        '</button>' +
+      '</div>' +
+      '<div id="' + id + '-content" style="display:none;">' +
+        '<div id="' + id + '-body"></div>' +
+        '<div id="' + id + '-ts" style="font-size:10px; color:var(--text-hint); margin-top:8px; padding-top:8px; border-top:1px solid var(--border); text-align:right;"></div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function loadScorecardCoaching(type, ldap, period) {
+  var id = 'sc-coaching-' + type;
+  var btn     = document.getElementById(id + '-btn');
+  var content = document.getElementById(id + '-content');
+  var body    = document.getElementById(id + '-body');
+  var ts      = document.getElementById(id + '-ts');
+  if (!btn || !content || !body) return;
+
+  // Toggle if already loaded
+  if (content.dataset.loaded === 'true') {
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    btn.textContent = content.style.display === 'none' ? '✨ Show Insights' : '✨ Hide Insights';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span style="display:inline-block; animation:spin .6s linear infinite;">⟳</span> Analyzing…';
+  content.style.display = 'block';
+  body.innerHTML =
+    '<div style="display:flex; align-items:center; gap:12px; padding:16px; background:var(--surface-2); border-radius:8px; border:1px solid var(--border);">' +
+      '<div style="width:32px; height:32px; border:3px solid #4285F4; border-top-color:transparent; border-radius:50%; animation:spin .6s linear infinite; flex-shrink:0;"></div>' +
+      '<div>' +
+        '<div style="font-size:13px; font-weight:600;">AI is reviewing your scorecard…</div>' +
+        '<div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">This usually takes 5–10 seconds</div>' +
+      '</div>' +
+    '</div>';
+
+  var handler = function(result) {
+    btn.disabled = false;
+    if (!result || !result.success) {
+      body.innerHTML = '<div style="background:var(--play-red-light); border:1px solid var(--play-red); border-radius:8px; padding:14px; font-size:13px; color:var(--play-red);">⚠️ ' + escHtml((result && result.error) || 'Could not generate insights.') + '</div>';
+      btn.innerHTML = '✨ Retry';
+      btn.disabled = false;
+      return;
+    }
+    content.dataset.loaded = 'true';
+    btn.innerHTML = '✨ Hide Insights';
+    body.innerHTML = renderScorecardMarkdown(result.coaching);
+    if (ts) ts.textContent = '⏱️ Generated at ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  if (type === 'agent') {
+    google.script.run
+      .withSuccessHandler(handler)
+      .withFailureHandler(function(e) { handler({ success: false, error: e.message }); })
+      .clientGetScorecardCoaching(ldap || '', period || '');
+  } else {
+    google.script.run
+      .withSuccessHandler(handler)
+      .withFailureHandler(function(e) { handler({ success: false, error: e.message }); })
+      .clientGetTeamScorecardCoaching(period || '');
+  }
+}
+
+function renderScorecardMarkdown(text) {
+  if (!text) return '';
+  var html = text
+    .replace(/## (.+)/g, '</div><div class="sc-coaching-section"><div class="sc-coaching-header">$1</div>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\* (.+)/g, '<div class="sc-coaching-bullet">• $1</div>')
+    .replace(/- (.+)/g, '<div class="sc-coaching-bullet">• $1</div>')
+    .replace(/\n\n/g, '<br>')
+    .replace(/\n/g, '<br>');
+  return '<div class="sc-coaching-wrap">' + html + '</div>';
+}
+
+// ── MICRO HELPERS ─────────────────────────────────────────────────────────
+function scFmtTime(s) {
+  if (s === null || s === undefined) return '—';
+  return s + 's';
+}
+
+function scPtgColor(ptg) {
+  if (ptg === null || ptg === undefined) return 'var(--text-hint)';
+  return ptg >= 100 ? '#01875f' : ptg >= 85 ? '#b8860b' : '#c0392b';
+}
+
+function scPtgChip(ptg) {
+  if (ptg === null || ptg === undefined) return '<span class="sc-chip sc-cn">— No data</span>';
+  if (ptg >= 100) return '<span class="sc-chip sc-cg">✓ On Target (' + ptg + '%)</span>';
+  if (ptg >= 85)  return '<span class="sc-chip sc-cy">⟳ Monitor (' + ptg + '%)</span>';
+  return '<span class="sc-chip sc-cr">⚠️ At Risk (' + ptg + '%)</span>';
+}
+
+function scStatusChip(status) {
+  var map = {
+    on_target: ['sc-cg', '✓ On Target'],
+    monitor:   ['sc-cy', '⟳ Monitor'],
+    at_risk:   ['sc-cr', '⚠️ At Risk'],
+    no_data:   ['sc-cn', '— No data']
+  };
+  var m = map[status] || map.no_data;
+  return '<span class="sc-chip ' + m[0] + '">' + m[1] + '</span>';
+}
+
+function scTargetChip(label, val, color) {
+  return '<div style="background:var(--surface-2); border:1px solid var(--border); padding:10px 14px; border-radius:8px; text-align:center;">' +
+    '<div style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">' + label + ' Target</div>' +
+    '<div style="font-size:15px; font-weight:700; color:' + color + '; margin-top:2px;">' + val + '</div>' +
+  '</div>';
+}
+
+function scError(e) {
+  return '<div class="sc-empty">' +
+    '<div style="font-size:48px; margin-bottom:12px;">⚠️</div>' +
+    '<h3>Could not load scorecard</h3>' +
+    '<p style="color:var(--text-secondary);">' + (e && e.message ? escHtml(e.message) : 'An error occurred.') + '</p>' +
+    '<button class="btn btn-secondary" onclick="renderScorecardView()" style="margin-top:16px;">Retry</button>' +
+  '</div>';
+}
+
+</script>
+
+<style>
+/* ── Scorecard Dashboard Styles ── */
+#sc-root { font-family: 'DM Sans', sans-serif; }
+
+@keyframes sc-shimmer {
+  0%, 100% { background-position: 200% 0; }
+  50%       { background-position: -200% 0; }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Topbar */
+.sc-topbar {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 16px;
+}
+.sc-page-title {
+  font-size: 18px; font-weight: 600; color: var(--text-primary);
+  display: flex; align-items: center; gap: 10px;
+}
+.sc-badge {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #4285F4, #7c4dff);
+  border-radius: 6px; display: flex; align-items: center;
+  justify-content: center; font-size: 14px;
+  box-shadow: 0 2px 4px rgba(66,133,244,0.2);
+}
+.sc-pill {
+  font-size: 11px; padding: 6px 12px; border-radius: 999px;
+  border: 0.5px solid var(--border-strong); color: var(--text-secondary);
+  background: var(--surface); cursor: pointer;
+}
+
+/* Tabs */
+.sc-tab-row {
+  display: flex; border-bottom: 1.5px solid var(--border);
+  margin-bottom: 16px;
+}
+.sc-tab {
+  font-size: 13px; padding: 10px 18px; cursor: pointer;
+  color: var(--text-secondary); border-bottom: 2px solid transparent;
+  margin-bottom: -1.5px; transition: all .2s ease;
+}
+.sc-tab:hover { color: var(--text-primary); }
+.sc-tab-on {
+  color: #4285F4 !important; border-bottom-color: #4285F4 !important;
+  font-weight: 600;
+}
+
+/* Cards */
+.sc-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 16px; margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.sc-card-sm {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;
+}
+.sc-lbl {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;
+}
+.sc-p-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-secondary); margin-bottom: 10px; font-weight: 600;
+}
+
+/* Agent Hero */
+.sc-agent-hero {
+  display: flex; align-items: center; gap: 16px; padding: 16px;
+}
+.sc-avatar {
+  width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
+  border: 3px solid #4285F4; flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(66,133,244,0.15);
+}
+.sc-agent-name {
+  font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;
+}
+.sc-agent-meta {
+  font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;
+}
+.sc-tag {
+  font-size: 11px; padding: 4px 10px; border-radius: 999px;
+  background: var(--surface-3); color: var(--text-secondary);
+  border: 0.5px solid var(--border);
+}
+
+/* AHT Cards */
+.sc-three-col {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+}
+.sc-aht-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 16px; text-align: center;
+  transition: all 0.2s ease;
+}
+.sc-aht-card:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08); transform: translateY(-2px);
+}
+
+/* Two col layout */
+.sc-two-col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
+}
+
+/* Metrics grid */
+.sc-metrics-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+}
+
+/* Table */
+.sc-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.sc-table thead {
+  background: var(--surface-2); position: sticky; top: 0; z-index: 10;
+}
+.sc-table th {
+  padding: 10px 12px; text-align: center; font-weight: 600;
+  color: var(--text-secondary); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.4px; border-bottom: 1px solid var(--border);
+}
+.sc-table th:first-child { text-align: left; }
+.sc-table td {
+  padding: 12px; border-bottom: 1px solid var(--border);
+  color: var(--text-primary); text-align: center;
+}
+.sc-table td:first-child { text-align: left; }
+.sc-table-alt { background: var(--surface-2); }
+.sc-table-row-hover:hover { background: var(--surface-3) !important; }
+
+/* Chips */
+.sc-chip {
+  display: inline-block; padding: 4px 10px; border-radius: 12px;
+  font-size: 11px; font-weight: 600; transition: all 0.2s ease;
+}
+.sc-cg { background: #e6f4ea; color: #01875f; }
+.sc-cy { background: #fff8e1; color: #b8860b; }
+.sc-cr { background: #fce8e6; color: #c0392b; }
+.sc-cn { background: var(--surface-2); color: var(--text-secondary); }
+
+/* Coaching */
+.sc-coaching-card {
+  border-top: 3px solid #4285F4;
+  background: linear-gradient(135deg, rgba(66,133,244,0.02), rgba(179,136,255,0.02));
+}
+.sc-coaching-wrap {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px; line-height: 1.6;
+}
+.sc-coaching-section { margin-bottom: 12px; }
+.sc-coaching-header {
+  font-size: 13px; font-weight: 700; color: #4285F4;
+  margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px;
+}
+.sc-coaching-bullet {
+  margin-bottom: 6px; color: var(--text-secondary); font-size: 12px;
+}
+
+/* Empty state */
+.sc-empty {
+  text-align: center; padding: 48px 20px;
+  background: var(--surface); border: 1px dashed var(--border);
+  border-radius: var(--radius-md); margin: 20px 0;
+}
+.sc-empty h3 {
+  font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;
+}
+.sc-empty p { font-size: 13px; color: var(--text-secondary); }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .sc-three-col   { grid-template-columns: repeat(2, 1fr); }
+  .sc-two-col     { grid-template-columns: 1fr; }
+  .sc-metrics-grid{ grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+  .sc-three-col   { grid-template-columns: 1fr; }
+  .sc-agent-hero  { flex-direction: column; text-align: center; }
+  .sc-metrics-grid{ grid-template-columns: repeat(2, 1fr); }
+  .sc-topbar      { flex-direction: column; gap: 12px; align-items: flex-start; }
+}
+</style>
