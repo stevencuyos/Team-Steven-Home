@@ -1,0 +1,270 @@
+<script>
+// ============================================================
+// ConcernView — Submission Form and Leadership Dashboard
+// ============================================================
+
+function renderConcernForm() {
+  var el = document.getElementById('view-concern-form');
+  el.innerHTML = buildConcernFormShell();
+  loadConcernFormConfig();
+}
+
+function renderConcernDashboard() {
+  var el = document.getElementById('view-concern-dashboard');
+  el.innerHTML = buildConcernDashboardShell();
+
+  // --- THE FIX: Clean up old modals and attach directly to the body ---
+  var oldModal = document.getElementById('modal-manage-concern');
+  if (oldModal) oldModal.remove();
+
+  var modalDiv = document.createElement('div');
+  modalDiv.innerHTML = buildManageConcernModal();
+  document.body.appendChild(modalDiv);
+  // --------------------------------------------------------------------
+
+  loadConcernDashboard(); 
+}
+
+// ── AGENT SUBMISSION FORM ──────────────────────────────────────────────────
+
+function buildConcernFormShell() {
+  return '<div style="max-width:600px;margin:0 auto">' +
+    '<div class="section-header mb-16"><div class="section-title">💬 Submit a Concern</div></div>' +
+    '<div class="card">' +
+      '<p style="font-size:14px;color:var(--text-secondary);margin-bottom:20px;">' +
+        'Your concern will be directed to the selected leadership member. Please be specific.' +
+      '</p>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Addressed To *</label>' +
+        '<select class="form-control" id="con-addressed-to">' +
+          '<option value="">Loading leadership list...</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Concern Type *</label>' +
+        '<select class="form-control" id="con-type">' +
+          '<option value="">Select type...</option>' +
+          '<option value="Attendance">Attendance</option>' +
+          '<option value="Productivity">Productivity</option>' +
+          '<option value="Incentive">Incentive</option>' +
+          '<option value="Operations">Operations</option>' +
+          '<option value="Personal">Personal</option>' +
+          '<option value="Schedule">Schedule</option>' +
+          '<option value="Others">Others</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Nature of the Concern *</label>' +
+        '<textarea class="form-control" id="con-nature" rows="5" placeholder="Describe your concern in detail..."></textarea>' +
+      '</div>' +
+      '<button class="btn btn-primary btn-full" onclick="submitConcernAction()" id="con-submit-btn">Submit Concern</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function loadConcernFormConfig() {
+  google.script.run
+    .withSuccessHandler(function(list) {
+      var sel = document.getElementById('con-addressed-to');
+      if (!sel) return;
+      var html = '<option value="">Select supervisor or manager...</option>';
+      html += '<option value="Both">Both (My Supervisor & Operations Manager)</option>';
+      (list || []).forEach(function(m) {
+        html += '<option value="' + m.ldap + '">' + escHtml(m.displayName) + ' (' + m.role + ')</option>';
+      });
+      sel.innerHTML = html;
+    })
+    .clientGetLeadershipList();
+}
+
+function submitConcernAction() {
+  var data = {
+    addressedTo: document.getElementById('con-addressed-to').value,
+    type: document.getElementById('con-type').value,
+    nature: document.getElementById('con-nature').value.trim()
+  };
+
+  if (!data.addressedTo || !data.type || !data.nature) {
+    showToast('Please fill in all required fields.', 'error');
+    return;
+  }
+
+  var btn = document.getElementById('con-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      showToast('Concern submitted successfully (ID: ' + result.id + ')', 'success');
+      renderConcernForm(); // Refresh form
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error: ' + e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Submit Concern';
+    })
+    .clientSubmitConcern(data);
+}
+
+// ── LEADERSHIP DASHBOARD ───────────────────────────────────────────────────
+
+function buildConcernDashboardShell() {
+  return '<div class="section-header mb-16">' +
+    '<div class="section-title">📊 Concerns Tracking Dashboard</div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button class="btn btn-primary btn-sm" onclick="navigate(\'concern-form\')">+ Submit New</button>' +
+      '<button class="btn btn-secondary btn-sm" onclick="loadConcernDashboard()">↻ Refresh</button>' +
+    '</div>' +
+  '</div>' +
+  '<div id="con-filter-bar" class="mb-16"></div>' +
+  '<div id="con-dashboard-content"></div>';
+}
+
+// Helper function to build the modal HTML independently
+function buildManageConcernModal() {
+  return '<div class="modal-overlay" id="modal-manage-concern">' +
+    '<div class="modal" style="max-width:500px">' +
+      '<div class="modal-header">' +
+        '<div class="modal-title">Manage Concern</div>' +
+        '<button class="modal-close" onclick="closeModal(\'modal-manage-concern\')">✕</button>' +
+      '</div>' +
+      '<div class="modal-body" id="manage-concern-body"></div>' +
+    '</div>' +
+  '</div>';
+}
+
+function loadConcernDashboard(filter) {
+  filter = filter || window._conFilter || 'New';
+  window._conFilter = filter;
+
+  var content = document.getElementById('con-dashboard-content');
+  if (!content) return;
+  content.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Loading concerns...</span></div>';
+
+  google.script.run
+    .withSuccessHandler(function(concerns) {
+      window._allConcerns = concerns;
+      renderConcernFilterBar(concerns, filter);
+
+      var filtered = concerns;
+      if (filter !== 'All') {
+        filtered = concerns.filter(function(c) { return c.Status === filter; });
+      }
+
+      if (!filtered || filtered.length === 0) {
+        content.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><h3>No ' + filter.toLowerCase() + ' concerns found</h3><p>You\'re all caught up!</p></div>';
+        return;
+      }
+      content.innerHTML = buildConcernTable(filtered);
+    })
+    .withFailureHandler(function(e) {
+      console.error('Server error loading concerns:', e);
+      content.innerHTML = '<div class="empty-state"><h3>Error loading dashboard</h3><p>' + e.message + '</p></div>';
+    })
+    .clientGetConcerns();
+}
+
+function renderConcernFilterBar(concerns, activeFilter) {
+  var bar = document.getElementById('con-filter-bar');
+  if (!bar) return;
+
+  var counts = { 'New': 0, 'In Progress': 0, 'Resolved': 0, 'All': concerns.length };
+  concerns.forEach(function(c) {
+    if (counts.hasOwnProperty(c.Status)) counts[c.Status]++;
+  });
+
+  var filters = ['New', 'In Progress', 'Resolved', 'All'];
+  var html = '<div class="flex gap-8">';
+  filters.forEach(function(f) {
+    var cls = f === activeFilter ? 'btn-primary' : 'btn-secondary';
+    html += '<button class="btn btn-sm ' + cls + '" onclick="loadConcernDashboard(\'' + f + '\')">' + f + ' (' + (counts[f] || 0) + ')</button>';
+  });
+  html += '</div>';
+  bar.innerHTML = html;
+}
+
+function buildConcernTable(concerns) {
+  // Sort by date newest first
+  concerns.sort(function(a, b) { return new Date(b.Timestamp) - new Date(a.Timestamp); });
+
+  var rows = concerns.map(function(c) {
+    var date = formatDate(c.Timestamp);
+    var statusCls = c.Status === 'New' ? 'text-red font-bold' : (c.Status === 'In Progress' ? 'text-yellow font-bold' : 'text-green');
+    var safeId = escHtml(c.ID);
+
+    return '<div class="lb-row" style="grid-template-columns:120px 100px 100px 100px 1fr 100px 80px" onclick="openManageConcern(\'' + safeId + '\')">' +
+      '<div style="font-size:12px;color:var(--text-hint)">' + date + '</div>' +
+      '<div style="font-weight:600">' + escHtml(c.LDAP) + '</div>' +
+      '<div style="font-size:12px">' + escHtml(c.Type) + '</div>' +
+      '<div style="font-size:12px">' + escHtml(c.AddressedTo) + '</div>' +
+      '<div style="font-size:13px;color:var(--text-secondary);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + escHtml(c.Nature) + '</div>' +
+      '<div class="' + statusCls + '" style="font-size:11px;text-transform:uppercase">' + c.Status + '</div>' +
+      '<div><button class="btn btn-sm btn-outline" style="padding:4px 8px;font-size:11px">Manage</button></div>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="leaderboard-table">' +
+    '<div class="lb-header" style="grid-template-columns:120px 100px 100px 100px 1fr 100px 80px">' +
+      '<div>Date</div><div>Agent</div><div>Type</div><div>Target</div><div>Nature</div><div>Status</div><div>Action</div>' +
+    '</div>' + rows + '</div>';
+}
+
+function openManageConcern(id) {
+  var concern = (window._allConcerns || []).find(function(c) { return c.ID === id; });
+  if (!concern) return;
+
+  var body = document.getElementById('manage-concern-body');
+  body.innerHTML = '<div class="mb-16">' +
+    '<div style="font-size:12px;color:var(--text-hint);margin-bottom:4px">CONCERN DETAILS</div>' +
+    '<div style="background:var(--surface-2);padding:12px;border-radius:8px;font-size:13px">' +
+      '<strong>From:</strong> ' + escHtml(concern.LDAP) + '<br>' +
+      '<strong>Type:</strong> ' + escHtml(concern.Type) + '<br>' +
+      '<strong>Date:</strong> ' + formatDateTime(concern.Timestamp) + '<br><br>' +
+      '<strong>Nature:</strong><br>' + escHtml(concern.Nature).replace(/\n/g, '<br>') +
+    '</div>' +
+  '</div>' +
+  '<div class="form-group">' +
+    '<label class="form-label">Status</label>' +
+    '<select class="form-control" id="upd-con-status">' +
+      '<option value="New"' + (concern.Status === 'New' ? ' selected' : '') + '>New</option>' +
+      '<option value="In Progress"' + (concern.Status === 'In Progress' ? ' selected' : '') + '>In Progress</option>' +
+      '<option value="Resolved"' + (concern.Status === 'Resolved' ? ' selected' : '') + '>Resolved</option>' +
+    '</select>' +
+  '</div>' +
+  '<div class="form-group">' +
+    '<label class="form-label">Resolution / Action Taken</label>' +
+    '<textarea class="form-control" id="upd-con-resolution" rows="4" placeholder="Describe how the concern was addressed...">' + escHtml(concern.Resolution || '') + '</textarea>' +
+  '</div>' +
+  '<div style="display:flex;gap:12px">' +
+    '<button class="btn btn-primary btn-full" onclick="submitUpdateConcern(\'' + escHtml(id) + '\')">Update Concern</button>' +
+    '<button class="btn btn-secondary btn-full" onclick="closeModal(\'modal-manage-concern\')">Cancel</button>' +
+  '</div>';
+
+  openModal('modal-manage-concern');
+}
+
+function submitUpdateConcern(id) {
+  var updates = {
+    Status: document.getElementById('upd-con-status').value,
+    Resolution: document.getElementById('upd-con-resolution').value.trim()
+  };
+
+  var btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Updating...';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      showToast('Concern updated successfully.', 'success');
+      closeModal('modal-manage-concern');
+      loadConcernDashboard();
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error: ' + e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Update Concern';
+    })
+    .clientUpdateConcern(id, updates);
+}
+
+</script>
