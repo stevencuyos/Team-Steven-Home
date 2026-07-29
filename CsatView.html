@@ -381,10 +381,15 @@ function buildAgentView(d) {
       '<div class="csat-metrics-strip">' +
         csatMetricItem(d.casesResolutionRate !== null ? d.casesResolutionRate + '%' : '—', 'Resolution rate', d.casesResolutionRate !== null && d.casesResolutionRate >= 90 ? '#01875f' : 'var(--text-secondary)') +
         csatMetricItem(d.repeatContactRate  !== null ? d.repeatContactRate  + '%' : '—', 'Repeat contact (7d)', 'var(--text-primary)') +
-        csatMetricItem(d.surveyOfferRate    !== null ? d.surveyOfferRate    + '%' : '—', 'Survey offer rate', 'var(--text-primary)') +
+        csatMetricItem(d.surveyOfferRate    !== null ? d.surveyOfferRate    + '%' : '—', 'Survey offer rate', d.surveyOfferRate !== null && d.surveyOfferRate >= 85 ? '#01875f' : 'var(--text-secondary)') +
+        csatMetricItem(d.chatAht !== null ? d.chatAht + 's' : '—', 'Chat AHT', d.chatAht !== null && d.chatAht <= 1200 ? '#01875f' : '#c0392b') +
+        csatMetricItem(d.phoneAht !== null ? d.phoneAht + 's' : '—', 'Phone AHT', d.phoneAht !== null && d.phoneAht <= 820 ? '#01875f' : '#c0392b') +
         csatMetricItem(d.totalCases || '—', 'Total cases handled', 'var(--text-primary)') +
       '</div>' +
     '</div>' +
+
+    // ── AHT Breakdown by Symptom ──
+    (d.symptomAhtBreakdown && d.symptomAhtBreakdown.length > 0 ? buildAhtBreakdownTable(d.symptomAhtBreakdown) : '') +
 
     // ── Case log ──
     buildCaseLogTable(d.caseLog, 'My Cases This Month') +
@@ -416,17 +421,21 @@ function buildManagerView(d) {
     '</div>' +
 
     // ── Summary strip ──
-    '<div class="csat-strip csat-strip-enhanced">' +
+    '<div class="csat-strip csat-strip-enhanced" style="flex-wrap:wrap;">' +
       csatStripItem(d.totalSurveyed, 'Surveys', 'var(--text-primary)') +
       '<div class="csat-st-div"></div>' +
       csatStripItem(d.csatCount, 'CSAT', '#01875f') +
       '<div class="csat-st-div"></div>' +
       csatStripItem(d.dsatCount, 'DSAT', '#c0392b') +
       '<div class="csat-st-div"></div>' +
-      csatStripItem(d.surveyOfferRate !== null ? d.surveyOfferRate + '%' : '—', 'Offer rate', 'var(--text-primary)') +
+      csatStripItem(d.surveyOfferRate !== null ? d.surveyOfferRate + '%' : '—', 'Offer rate', d.surveyOfferRate !== null && d.surveyOfferRate >= 85 ? '#01875f' : 'var(--text-secondary)') +
+      '<div class="csat-st-div"></div>' +
+      csatStripItem(d.chatAht !== null ? d.chatAht + 's' : '—', 'Chat AHT', d.chatAht !== null && d.chatAht <= 1200 ? '#01875f' : '#c0392b') +
+      '<div class="csat-st-div"></div>' +
+      csatStripItem(d.phoneAht !== null ? d.phoneAht + 's' : '—', 'Phone AHT', d.phoneAht !== null && d.phoneAht <= 820 ? '#01875f' : '#c0392b') +
       '<div class="csat-st-div"></div>' +
       csatStripItem(d.atRiskCount, 'At risk', d.atRiskCount > 0 ? '#c0392b' : 'var(--text-secondary)') +
-      '<div class="csat-strip-bar">' +
+      '<div class="csat-strip-bar" style="min-width:150px;">' +
         '<div style="font-size:10px;color:var(--text-secondary);margin-bottom:4px">CSAT / DSAT / No survey</div>' +
         '<div class="csat-stacked">' +
           (d.totalSurveyed > 0
@@ -803,6 +812,39 @@ function buildChannelRows(d) {
   }).join('');
 }
 
+function buildAhtBreakdownTable(breakdownArr) {
+  if (!breakdownArr || breakdownArr.length === 0) return '';
+  var rows = breakdownArr.map(function(s) {
+    return '<tr>' +
+      '<td style="font-weight:500;">' + escHtml(s.symptom || 'Unknown') + '</td>' +
+      '<td style="text-align:right;">' + (s.caseVolume || 0) + '</td>' +
+      '<td style="text-align:right;color:' + (s.chatAht !== null && s.chatAht <= 1200 ? '#01875f' : (s.chatAht !== null ? '#c0392b' : 'inherit')) + ';">' + (s.chatAht !== null ? s.chatAht + 's' : '—') + '</td>' +
+      '<td style="text-align:right;color:' + (s.phoneAht !== null && s.phoneAht <= 820 ? '#01875f' : (s.phoneAht !== null ? '#c0392b' : 'inherit')) + ';">' + (s.phoneAht !== null ? s.phoneAht + 's' : '—') + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + (s.overallAht !== null ? s.overallAht + 's' : '—') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="csat-card-sm" style="margin-bottom:12px;">' +
+    '<div class="csat-p-title">AHT Breakdown by Symptom</div>' +
+    '<div style="overflow-x:auto;">' +
+      '<table class="csat-ch-table csat-table-enhanced">' +
+        '<thead>' +
+          '<tr>' +
+            '<th style="text-align:left;">Symptom</th>' +
+            '<th style="text-align:right;">Volume</th>' +
+            '<th style="text-align:right;">Chat AHT</th>' +
+            '<th style="text-align:right;">Phone AHT</th>' +
+            '<th style="text-align:right;">Overall AHT</th>' +
+          '</tr>' +
+        '</thead>' +
+        '<tbody>' +
+          rows +
+        '</tbody>' +
+      '</table>' +
+    '</div>' +
+  '</div>';
+}
+
 function buildAgentScorecard(agents) {
   if (!agents || agents.length === 0) return '<div class="empty-state" style="padding:20px"><h3>No agent data</h3></div>';
 
@@ -829,6 +871,8 @@ function buildAgentScorecard(agents) {
       '<td>' + fmtPct(a.chat) + '</td>' +
       '<td>' + fmtPct(a.phone) + '</td>' +
       '<td>' + fmtPct(a.email) + '</td>' +
+      '<td style="color:' + (a.chatAht !== null && a.chatAht <= 1200 ? '#01875f' : '#c0392b') + '">' + (a.chatAht !== null ? a.chatAht + 's' : '—') + '</td>' +
+      '<td style="color:' + (a.phoneAht !== null && a.phoneAht <= 820 ? '#01875f' : '#c0392b') + '">' + (a.phoneAht !== null ? a.phoneAht + 's' : '—') + '</td>' +
       '<td style="color:' + (a.dsatCount > 0 ? '#c0392b' : 'var(--color-text-secondary)') + '">' + (a.dsatCount || 0) + '</td>' +
       '<td>' + csatStatusChip(a.status) + '</td>' +
       '<td><button class="btn btn-sm btn-secondary csat-btn-cases" style="font-size:10px;padding:4px 8px;' +
@@ -837,7 +881,7 @@ function buildAgentScorecard(agents) {
         'Cases' +
       '</button></td>' +
     '</tr>' +
-    '<tr id="caselog-' + escHtml(a.ldap) + '" style="display:none"><td colspan="9" style="padding:0">' +
+    '<tr id="caselog-' + escHtml(a.ldap) + '" style="display:none"><td colspan="11" style="padding:0">' +
       buildCaseLogTable(a.caseLog, a.displayName + ' — Cases') +
     '</td></tr>';
   }).join('');
@@ -846,7 +890,7 @@ function buildAgentScorecard(agents) {
     '<table class="csat-ag-tbl csat-table-enhanced"><thead><tr>' +
       '<th style="text-align:left">Agent</th>' +
       '<th>Surveys</th><th>Overall</th><th>Chat</th><th>Phone</th><th>Email</th>' +
-      '<th>DSATs</th><th>Status</th><th></th>' +
+      '<th>Chat AHT</th><th>Phone AHT</th><th>DSATs</th><th>Status</th><th></th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>' +
   '</div>';
 }
@@ -1420,7 +1464,7 @@ function toggleAgentCaseLog(ldap) {
 
 /* Metrics strip */
 .csat-metrics-strip {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
 }
 
 /* Team rows */
