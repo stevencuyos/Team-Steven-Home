@@ -64,6 +64,181 @@ function safeFloat(val) {
   return isNaN(n) ? null : n;
 }
 
+// ── READ AHT DUMP RAW DATA ───────────────────────────────────────────────
+
+function readAhtDumpCached() {
+  var cacheKey = 'aht_raw_v1';
+  var currentYear = new Date().getFullYear();
+
+  try {
+    var cache = CacheService.getScriptCache();
+
+    // Check for chunked cache
+    var chunkCount = cache.get(cacheKey + '_chunks');
+    if (chunkCount) {
+      var assembled = '';
+      for (var c = 0; c < parseInt(chunkCount); c++) {
+        var chunk = cache.get(cacheKey + '_chunk_' + c);
+        if (!chunk) { assembled = null; break; }
+        assembled += chunk;
+      }
+      if (assembled) return JSON.parse(assembled);
+    }
+
+    // Check single-key cache
+    var cachedStr = cache.get(cacheKey);
+    if (cachedStr) return JSON.parse(cachedStr);
+  } catch(e) {
+    Logger.log('[AHT] Cache read error: ' + e.message);
+  }
+
+  // Fetch from source
+  var ext = SpreadsheetApp.openById(CSAT_SHEET_ID);
+  var dump = ext.getSheetByName('AHTDump');
+  if (!dump) throw new Error('AHTDump sheet not found.');
+
+  var raw = dump.getDataRange().getValues();
+  if (raw.length < 2) return [];
+
+  var headers = raw[0];
+  var C = buildColMap(headers);
+  var rows = [];
+
+  for (var i = 1; i < raw.length; i++) {
+    var row = raw[i];
+
+    var rawMonth = C['Month'] !== undefined ? row[C['Month']] : null;
+    var month = parseRowMonth(rawMonth);
+    if (!month) continue;
+
+    var yearPart = parseInt(month.split('-')[0]);
+    if (yearPart !== currentYear) continue;
+
+    var ldap = C['LDAP'] !== undefined ? String(row[C['LDAP']] || '').trim().toLowerCase().split('@')[0] : '';
+    if (!ldap) continue;
+
+    var tcLdap = (C['Team Captain / Manager LDAP'] !== undefined ? row[C['Team Captain / Manager LDAP']] : row[22]);
+    tcLdap = String(tcLdap || '').trim().toLowerCase().split('@')[0];
+
+    rows.push({
+      month: month,
+      ldap: ldap,
+      tcLdap: tcLdap,
+      channel: C['Channel'] !== undefined ? String(row[C['Channel']] || '').trim().toLowerCase() : '',
+      symptom: C['Symptom / TUI'] !== undefined ? String(row[C['Symptom / TUI']] || '').trim() : String(row[23] || '').trim(),
+      chatAht: safeFloat(C['Chat AHT'] !== undefined ? row[C['Chat AHT']] : null),
+      phoneAht: safeFloat(C['Phone AHT'] !== undefined ? row[C['Phone AHT']] : null),
+      surveyOfferRate: safeFloat(C['Survey Offer Rate'] !== undefined ? row[C['Survey Offer Rate']] : null),
+      totalChats: safeFloat(C['Number of Total Chats'] !== undefined ? row[C['Number of Total Chats']] : null),
+      incomingPhone: safeFloat(C['Incoming Phone Calls'] !== undefined ? row[C['Incoming Phone Calls']] : null)
+    });
+  }
+
+  // Cache result
+  try {
+    var cache = CacheService.getScriptCache();
+    var serialized = JSON.stringify(rows);
+    if (serialized.length < 100000) {
+      cache.put(cacheKey, serialized, 1800); // 30 min
+    } else {
+      var chunkSize = 90000;
+      var chunks = [];
+      for (var ci = 0; ci < serialized.length; ci += chunkSize) {
+        chunks.push(serialized.slice(ci, ci + chunkSize));
+      }
+      chunks.forEach(function(chunk, idx) {
+        cache.put(cacheKey + '_chunk_' + idx, chunk, 1800);
+      });
+      cache.put(cacheKey + '_chunks', String(chunks.length), 1800);
+    }
+  } catch(e) {
+    Logger.log('[AHT] Cache write error: ' + e.message);
+  }
+
+  return rows;
+}
+
+function getAhtMetrics(ahtRows) {
+  var chatAhtSeconds = 0, chatVolume = 0;
+  var phoneAhtSeconds = 0, phoneVolume = 0;
+  var surveyOfferSum = 0, surveyOfferCount = 0;
+  var symptoms = {};
+
+  ahtRows.forEach(function(r) {
+    if (r.channel === 'chat') {
+      var vol = r.totalChats || 0;
+      var aht = r.chatAht || 0;
+      if (vol > 0 && aht > 0) {
+        chatAhtSeconds += (aht * vol);
+        chatVolume += vol;
+      }
+    } else if (r.channel === 'phone') {
+      var vol = r.incomingPhone || 0;
+      var aht = r.phoneAht || 0;
+      if (vol > 0 && aht > 0) {
+        phoneAhtSeconds += (aht * vol);
+        phoneVolume += vol;
+      }
+    }
+
+    if (r.surveyOfferRate !== null && r.surveyOfferRate !== undefined) {
+      var sor = parseFloat(r.surveyOfferRate);
+      if (!isNaN(sor)) {
+        surveyOfferSum += (sor > 1 ? sor : sor * 100);
+        surveyOfferCount++;
+      }
+    }
+
+    if (r.symptom) {
+      if (!symptoms[r.symptom]) {
+        symptoms[r.symptom] = { chatAhtSeconds: 0, chatVol: 0, phoneAhtSeconds: 0, phoneVol: 0, totalCases: 0 };
+      }
+
+      var sym = symptoms[r.symptom];
+      if (r.channel === 'chat') {
+        var vol = r.totalChats || 0;
+        var aht = r.chatAht || 0;
+        if (vol > 0 && aht > 0) {
+          sym.chatAhtSeconds += (aht * vol);
+          sym.chatVol += vol;
+          sym.totalCases += vol;
+        }
+      } else if (r.channel === 'phone') {
+        var vol = r.incomingPhone || 0;
+        var aht = r.phoneAht || 0;
+        if (vol > 0 && aht > 0) {
+          sym.phoneAhtSeconds += (aht * vol);
+          sym.phoneVol += vol;
+          sym.totalCases += vol;
+        }
+      }
+    }
+  });
+
+  var symptomBreakdown = Object.keys(symptoms).map(function(k) {
+    var s = symptoms[k];
+    var cAht = s.chatVol > 0 ? Math.round(s.chatAhtSeconds / s.chatVol) : null;
+    var pAht = s.phoneVol > 0 ? Math.round(s.phoneAhtSeconds / s.phoneVol) : null;
+    var oAht = (s.chatVol + s.phoneVol) > 0 ? Math.round((s.chatAhtSeconds + s.phoneAhtSeconds) / (s.chatVol + s.phoneVol)) : null;
+    return {
+      symptom: k,
+      chatAht: cAht,
+      phoneAht: pAht,
+      overallAht: oAht,
+      caseVolume: s.totalCases
+    };
+  }).sort(function(a, b) {
+    return b.caseVolume - a.caseVolume;
+  });
+
+  return {
+    surveyOfferRate: surveyOfferCount > 0 ? Math.round((surveyOfferSum / surveyOfferCount) * 10) / 10 : null,
+    chatAht: chatVolume > 0 ? Math.round(chatAhtSeconds / chatVolume) : null,
+    phoneAht: phoneVolume > 0 ? Math.round(phoneAhtSeconds / phoneVolume) : null,
+    symptomAhtBreakdown: symptomBreakdown
+  };
+}
+
 // ── READ RAW DATA FROM SOURCE ─────────────────────────────────────────────
 
 function readCsatDump() {
@@ -151,7 +326,7 @@ function readCsatDump() {
     // Quality metrics
     var repeatContact    = safeFloat(C['Repeat Contact Rate (7 Days)'] !== undefined ? row[C['Repeat Contact Rate (7 Days)']] : null);
     var resolutionRate   = safeFloat(C['Cases Resolution Rate']         !== undefined ? row[C['Cases Resolution Rate']]         : null);
-    var surveyOfferRate  = safeFloat(C['Survey Offer Rate']             !== undefined ? row[C['Survey Offer Rate']]             : null);
+    // var surveyOfferRate  = safeFloat(C['Survey Offer Rate']             !== undefined ? row[C['Survey Offer Rate']]             : null);
     var satisfiedResp    = safeFloat(C['Satisfied CSAT Responses']      !== undefined ? row[C['Satisfied CSAT Responses']]      : null);
     var surveyRespCount  = safeFloat(C['Survey Response Count']         !== undefined ? row[C['Survey Response Count']]         : null);
     var caseId = C['Case ID'] !== undefined ? String(row[C['Case ID']] || '').trim() : '';
@@ -174,7 +349,7 @@ function readCsatDump() {
       emailResp:      emailResp,
       repeatContact:  repeatContact,
       resolutionRate: resolutionRate,
-      surveyOfferRate:surveyOfferRate,
+      // surveyOfferRate:surveyOfferRate,
       satisfiedResp:  satisfiedResp,
       surveyRespCount:surveyRespCount
     });
@@ -259,9 +434,7 @@ function aggregateRows(rows) {
     if (r.resolutionRate !== null && r.resolutionRate >= 0) {
       resolutionVals.push(r.resolutionRate > 1 ? r.resolutionRate : r.resolutionRate * 100);
     }
-    if (r.surveyOfferRate !== null && r.surveyOfferRate >= 0) {
-      offerVals.push(r.surveyOfferRate > 1 ? r.surveyOfferRate : r.surveyOfferRate * 100);
-    }
+
   });
 
   // 1. Convert DSAT Themes object to a sorted array for the UI!
@@ -297,7 +470,7 @@ function aggregateRows(rows) {
     dsatThemes: themeArr,
     repeatContactRate: avg(repeatVals),
     casesResolutionRate: avg(resolutionVals),
-    surveyOfferRate: avg(offerVals),
+
     
     // Gamification Engine Variables
     chatVol: chatDen,
@@ -326,6 +499,7 @@ function getAvailableCsatMonths() {
 
 function getMyCsatData(ldap, selectedMonth) {
   var allRows  = readCsatDump();
+  var allAhtRows = readAhtDumpCached();
   var curMonth = selectedMonth || currentCsatMonth();
   var prvMonth = getPrevCsatMonth(curMonth);
 
@@ -337,6 +511,9 @@ function getMyCsatData(ldap, selectedMonth) {
   var tcLdap = curRows[0].tcLdap;
   var cur    = aggregateRows(curRows);
   var prv    = aggregateRows(prvRows);
+
+  var curAhtRows = allAhtRows.filter(function(r) { return r.ldap === ldap && r.month === curMonth; });
+  var ahtMetrics = getAhtMetrics(curAhtRows);
 
   // Team comparison
   var teamRows = allRows.filter(function(r) { return r.tcLdap === tcLdap && r.month === curMonth; });
@@ -400,7 +577,10 @@ function getMyCsatData(ldap, selectedMonth) {
     status:           csatStatus(cur.overall),
     casesResolutionRate: cur.casesResolutionRate,
     repeatContactRate:   cur.repeatContactRate,
-    surveyOfferRate:     cur.surveyOfferRate,
+    surveyOfferRate:     ahtMetrics.surveyOfferRate,
+    chatAht:             ahtMetrics.chatAht,
+    phoneAht:            ahtMetrics.phoneAht,
+    symptomAhtBreakdown: ahtMetrics.symptomAhtBreakdown,
     teamRank:         myRank,
     teamSize:         ranked.length,
     trendData:        trendData,
@@ -424,6 +604,7 @@ function getMyCsatData(ldap, selectedMonth) {
 
 function getTeamCsatData(managerLdap, selectedMonth) {
   var allRows  = readCsatDump();
+  var allAhtRows = readAhtDumpCached();
   var curMonth = selectedMonth || currentCsatMonth();
   var prvMonth = getPrevCsatMonth(curMonth);
 
@@ -434,12 +615,14 @@ function getTeamCsatData(managerLdap, selectedMonth) {
     return { month: curMonth, overall: null, agents: [], atRiskCount: 0,
              csatCount: 0, dsatCount: 0, totalSurveyed: 0, totalCases: 0,
              chatResponses: 0, phoneResponses: 0, emailResponses: 0,
-             chat: null, phone: null, email: null, surveyOfferRate: null,
+             chat: null, phone: null, email: null, surveyOfferRate: null, chatAht: null, phoneAht: null,
              topDsatThemes: [], delta: { overall: null, chat: null, phone: null, email: null } };
   }
 
   var cur = aggregateRows(curRows);
   var prv = aggregateRows(prvRows);
+  var curAhtRows = allAhtRows.filter(function(r) { return r.tcLdap === managerLdap && r.month === curMonth; });
+  var teamAhtMetrics = getAhtMetrics(curAhtRows);
 
   // Per-agent breakdown
   var agentLdaps = [];
@@ -452,6 +635,8 @@ function getTeamCsatData(managerLdap, selectedMonth) {
     var lAgg     = aggregateRows(lRows);
     var lPrvRows = prvRows.filter(function(r) { return r.ldap === l; });
     var lPrv     = aggregateRows(lPrvRows);
+    var lAhtRows = curAhtRows.filter(function(r) { return r.ldap === l; });
+    var lAhtMetrics = getAhtMetrics(lAhtRows);
 
     // Trend for this agent
     var monthMap = {};
@@ -474,7 +659,9 @@ function getTeamCsatData(managerLdap, selectedMonth) {
       dsatCount:       lAgg.dsatCount,
       totalSurveyed:   lAgg.totalSurveyed,
       totalCases:      lAgg.totalCases,
-      surveyOfferRate: lAgg.surveyOfferRate,
+      surveyOfferRate: lAhtMetrics.surveyOfferRate,
+      chatAht:         lAhtMetrics.chatAht,
+      phoneAht:        lAhtMetrics.phoneAht,
       resolutionRate:  lAgg.casesResolutionRate,
       repeatContact:   lAgg.repeatContactRate,
       dsatThemes:      lAgg.dsatThemes,
@@ -509,9 +696,9 @@ function getTeamCsatData(managerLdap, selectedMonth) {
     dsatCount:        cur.dsatCount,
     totalSurveyed:    cur.totalSurveyed,
     totalCases:       cur.totalCases,
-    surveyOfferRate:  cur.surveyOfferRate !== null
-      ? cur.surveyOfferRate
-      : (cur.totalCases > 0 ? Math.round(cur.totalSurveyed / cur.totalCases * 1000) / 10 : null),
+    surveyOfferRate:  teamAhtMetrics.surveyOfferRate,
+    chatAht:          teamAhtMetrics.chatAht,
+    phoneAht:         teamAhtMetrics.phoneAht,
     atRiskCount:      agents.filter(function(a) { return a.status === 'at_risk'; }).length,
     topDsatThemes:    cur.dsatThemes,
     delta: {
@@ -592,6 +779,7 @@ function getAllTeamsCsatData(selectedMonth) {
 function clearCsatCache() {
   var cache    = CacheService.getScriptCache();
   var cacheKey = 'csat_raw_v3';
+  var ahtCacheKey = 'aht_raw_v1';
   cache.remove(cacheKey);
   var chunkCount = cache.get(cacheKey + '_chunks');
   if (chunkCount) {
@@ -599,6 +787,15 @@ function clearCsatCache() {
       cache.remove(cacheKey + '_chunk_' + i);
     }
     cache.remove(cacheKey + '_chunks');
+  }
+
+  cache.remove(ahtCacheKey);
+  var ahtChunkCount = cache.get(ahtCacheKey + '_chunks');
+  if (ahtChunkCount) {
+    for (var j = 0; j < parseInt(ahtChunkCount); j++) {
+      cache.remove(ahtCacheKey + '_chunk_' + j);
+    }
+    cache.remove(ahtCacheKey + '_chunks');
   }
   // Also clear old cache keys
   cache.remove('csat_raw_dump');
@@ -610,7 +807,8 @@ function clearCsatCache() {
 function runCsatAggregation() {
   clearCsatCache();
   readCsatDump(); // pre-warm fresh from source
-  Logger.log('[CSAT] Re-read from source CSATdump and cached at ' + new Date());
+  readAhtDumpCached(); // pre-warm AHT
+  Logger.log('[CSAT] Re-read from source CSATdump and AHTDump and cached at ' + new Date());
 }
 
 // Test function — run from Apps Script editor
