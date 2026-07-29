@@ -29,7 +29,6 @@ var COL = {
   month:           1,  // B
   ldap:            2,  // C
   channel:         3,  // D
-  symptom:         4,  // E
   chatAht:         5,  // F
   phoneAht:        6,  // G
   phoneTalkTime:   7,  // H
@@ -37,6 +36,7 @@ var COL = {
   phoneHoldTime:   9,  // J
   phoneAcw:       10,  // K
   netCasesClosed: 11,  // L
+  casesClosed:    12,  // M
   incomingPhone:  13,  // N
   incomingEmail:  14,  // O
   totalChats:     15,  // P
@@ -45,7 +45,8 @@ var COL = {
   phoneSla:       18,  // S
   emailSla:       19,  // T
   repeatContact:  20,  // U
-  supervisor:     22   // W
+  supervisor:     22,  // W
+  symptom:        23   // X
 };
 
 // ── MAIN AGENT SCORECARD ──────────────────────────────────────────────────
