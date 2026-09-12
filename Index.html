@@ -1391,41 +1391,20 @@ function setLoading(viewId, message) {
 }
 
 function renderTaskCardHtml(task) {
-  var catColor = getCategoryColor(task.category);
-  var deadlineText = task.deadline || 'No deadline';
-  var isUrgent = task.urgency === 'critical';
-  var deadlineColor = isUrgent ? 'color:#c62828' : 'color:var(--text-hint)';
-
-  var statusHtml = '';
-  if (task.agentStatus === 'Completed') {
-    statusHtml = renderStatusBadge('Done');
-  } else if (task.agentStatus === 'In Progress') {
-    statusHtml = renderStatusBadge('In Progress');
-  } else {
-    statusHtml = renderStatusBadge('available');
-  }
-
-  return '<div class="task-card card-elevation-1" onclick="navigate(\'task-detail\', {taskId:\'' + escHtml(task.id) + '\'})" data-task-id="' + escHtml(task.id) + '" style="width:280px;min-width:280px;display:flex;flex-direction:row;gap:12px;padding:14px;align-items:flex-start">' +
-    '<div style="width:56px;height:56px;border-radius:14px;background:' + catColor + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;flex-direction:column">' +
-      '<div style="font-family:\'Google Sans\',sans-serif;font-size:18px;font-weight:700;color:#fff;line-height:1">' + task.basePoints + '</div>' +
-      '<div style="font-size:9px;font-weight:600;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:.5px">pts</div>' +
-    '</div>' +
-    '<div style="flex:1;min-width:0">' +
-      '<div style="font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.3;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + escHtml(task.title) + '</div>' +
-      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
-        '<span style="font-size:11px;font-weight:500;color:' + catColor + '">' + escHtml(task.category) + '</span>' +
-        '<span style="color:var(--border-strong);font-size:10px">•</span>' +
-        '<span class="task-difficulty ' + getDifficultyClass(task.difficulty) + '" style="font-size:10px;padding:2px 6px">' + (task.difficulty||'Easy') + '</span>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto">' +
-        '<div style="font-size:11px;' + deadlineColor + ';display:flex;align-items:center;gap:3px">' +
-          '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>' +
-          deadlineText +
-        '</div>' +
-        statusHtml +
-      '</div>' +
-    '</div>' +
-  '</div>';
+  var status = String(task.status || '').toLowerCase();
+  var isCompleted = status === 'completed' || task.completed === true;
+  var isInProgress = status === 'in_progress' || status === 'in progress';
+  var statusClass = isCompleted ? 'status-completed' : (isInProgress ? 'status-inprogress' : 'status-available');
+  var statusText = isCompleted ? 'Completed' : (isInProgress ? 'In Progress' : 'Available');
+  var statusIcon = isCompleted ? '✓' : (isInProgress ? '↻' : '▶');
+  var difficulty = task.difficulty || task.level || 'Standard';
+  var deadline = task.deadline || task.dueDate || '';
+  return '<div class="task-card card-elevation-1 home-task-card ' + statusClass + '" onclick="navigate(\'task-detail\', {taskId:\'' + escHtml(task.id) + '\'})" data-task-id="' + escHtml(task.id) + '">' +
+    '<div class="home-task-points"><span>' + (task.points || 0) + '</span><small>PTS</small></div>' +
+    '<div class="home-task-body"><div class="home-task-title">' + escHtml(task.title || 'Untitled task') + '</div>' +
+    '<div class="home-task-meta"><span>' + escHtml(task.category || 'General') + '</span><span class="task-difficulty ' + getDifficultyClass(difficulty) + '">' + escHtml(difficulty) + '</span></div>' +
+    (deadline ? '<div class="home-task-deadline">⏱ ' + escHtml(deadline) + '</div>' : '') +
+    '<div class="home-task-footer"><span class="status-badge ' + statusClass + '">' + statusIcon + ' ' + statusText + '</span></div></div></div>';
 }
 function toggleFaq(header) {
   var body = header.nextElementSibling;
@@ -1475,64 +1454,54 @@ function renderHome() {
 
 function buildHomeHtml(data) {
   var html = '';
-
-  // Featured hero banner (kept as-is)
-  if (data.featured && data.featured.length > 0) {
-    var f = data.featured[0];
-    html += '<div style="background:linear-gradient(135deg,var(--play-green-dark) 0%,var(--play-green) 60%,#00c853 100%);border-radius:var(--radius-lg);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;position:relative;overflow:hidden;cursor:pointer" onclick="navigate(\'task-detail\',{taskId:\'' + escHtml(f.id) + '\'})">' +
-      '<div style="position:absolute;right:-40px;top:-40px;width:160px;height:160px;background:rgba(255,255,255,0.07);border-radius:50%;pointer-events:none"></div>' +
-      '<div style="position:absolute;right:20px;bottom:-30px;width:100px;height:100px;background:rgba(255,255,255,0.05);border-radius:50%;pointer-events:none"></div>' +
-      '<div style="position:relative;z-index:1">' +
-        '<div style="font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#fff;background:rgba(255,255,255,0.2);padding:3px 10px;border-radius:var(--radius-pill);width:fit-content;margin-bottom:10px">Featured task</div>' +
-        '<div style="font-family:\'Google Sans\',sans-serif;font-size:18px;font-weight:600;color:#fff;margin-bottom:6px">' + escHtml(f.title) + '</div>' +
-        '<div style="font-size:13px;color:rgba(255,255,255,0.8);margin-bottom:14px;max-width:400px">' + escHtml(f.description ? f.description.slice(0,100) + (f.description.length > 100 ? '...' : '') : '') + '</div>' +
-        '<button style="background:#fff;color:var(--play-green-dark);border:none;border-radius:var(--radius-pill);padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">View task</button>' +
-      '</div>' +
-      '<div style="text-align:center;position:relative;z-index:1;flex-shrink:0">' +
-        '<div style="font-family:\'Google Sans\',sans-serif;font-size:48px;font-weight:700;color:var(--play-yellow);line-height:1;text-shadow:0 2px 12px rgba(0,0,0,0.15)">' + f.basePoints + '</div>' +
-        '<div style="font-size:13px;font-weight:600;color:#fff;opacity:0.9;text-transform:uppercase;letter-spacing:1px;margin-top:2px">pts</div>' +
-      '</div>' +
-    '</div>';
+  if (data.featured) {
+    var f = data.featured;
+    html += '<div class="hero-banner mb-32" onclick="navigate(\'task-detail\', {taskId:\'' + escHtml(f.id) + '\'})">' +
+      '<div class="hero-tag">⭐ FEATURED TASK</div>' +
+      '<div class="hero-title">' + escHtml(f.title) + '</div>' +
+      '<div class="hero-desc">' + escHtml(f.description || 'Complete this featured task and earn bonus points.') + '</div>' +
+      '<div class="hero-footer"><div><span class="hero-pts-num">' + (f.points || 0) + '</span> <span class="hero-pts-label">points</span></div>' +
+      '<button class="hero-cta" onclick="event.stopPropagation(); navigate(\'task-detail\', {taskId:\'' + escHtml(f.id) + '\'})">View task →</button></div></div>';
   }
-
-  // Tab bar
-  html += '<div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;gap:0">' +
-    '<div id="tab-foryou" onclick="switchHomeTab(\'foryou\')" style="padding:10px 20px;font-size:14px;font-weight:600;color:var(--play-green);border-bottom:2px solid var(--play-green);margin-bottom:-2px;cursor:pointer">For you</div>' +
-    '<div id="tab-new" onclick="switchHomeTab(\'new\')" style="padding:10px 20px;font-size:14px;font-weight:500;color:var(--text-hint);cursor:pointer">New this week</div>' +
-    '<div id="tab-closing" onclick="switchHomeTab(\'closing\')" style="padding:10px 20px;font-size:14px;font-weight:500;color:var(--text-hint);cursor:pointer">Closing soon</div>' +
-  '</div>';
-
-  // Tab content panels
-  var forYouTasks = (data.forYou && data.forYou.length > 0) ? data.forYou : (data.quickWins || []);
-  var newTasks = data.newThisWeek || [];
-  var closingTasks = data.closingSoon || [];
-
-  html += '<div id="home-tab-foryou">' + buildHomeSection(forYouTasks, '⚡ Quick Wins & For You') + '</div>';
-  html += '<div id="home-tab-new" style="display:none">' + buildHomeSection(newTasks, '🆕 New This Week') + '</div>';
-  html += '<div id="home-tab-closing" style="display:none">' + buildHomeSection(closingTasks, '⏰ Closing Soon') + '</div>';
-
-  // Categories
-  if (data.categories && data.categories.length > 0) {
-    html += '<div style="margin-top:24px"><div class="section-header"><div class="section-title">Browse by Category</div></div><div class="category-grid">' +
-      data.categories.map(function(c) {
-        return '<div class="category-tile" onclick="navigate(\'browse\',{category:\'' + escHtml(c.name) + '\'})">' +
-          '<div class="category-tile-icon">' + getCategoryIcon(c.name) + '</div>' +
-          '<div class="category-tile-name">' + escHtml(c.name) + '</div>' +
-          '<div class="category-tile-count">' + c.count + ' task' + (c.count !== 1 ? 's' : '') + '</div></div>';
-      }).join('') + '</div></div>';
-  }
-
-  if (!html) html = '<div class="empty-state"><div class="empty-state-icon">🎯</div><h3>No tasks available</h3><p>New tasks are posted regularly.</p><button class="btn btn-primary" style="margin-top:16px" onclick="navigate(\'browse\')">Browse all tasks</button></div>';
+  var sections = [
+    { id: 'foryou', label: 'For you', tasks: data.forYou || data.quickWins || [], viewAll: 'browse' },
+    { id: 'new', label: 'New this week', tasks: data.newThisWeek || [], viewAll: 'browse' },
+    { id: 'closing', label: 'Closing soon', tasks: data.closingSoon || [], viewAll: 'browse' }
+  ];
+  html += '<div class="home-feed-tabs mb-24">';
+  sections.forEach(function(section, index) {
+    html += '<button id="tab-' + section.id + '" class="home-tab ' + (index === 0 ? 'active' : '') + '" onclick="switchHomeTab(\'' + section.id + '\')">' +
+      escHtml(section.label) + '<span class="home-tab-count">' + section.tasks.length + '</span></button>';
+  });
+  html += '</div>';
+  sections.forEach(function(section, index) {
+    html += '<section id="panel-' + section.id + '" class="home-feed-panel" style="display:' + (index === 0 ? 'block' : 'none') + '">' +
+      buildHomeSection(section.tasks, section.label, section.viewAll) + '</section>';
+  });
+  var completed = data.completedTasks || [];
+  html += '<section class="home-completed-section mb-32">' +
+    '<div class="section-header"><div><div class="section-title">Completed</div><div class="section-subtitle">Your finished tasks</div></div><span class="section-count">' + completed.length + '</span></div>' +
+    (completed.length ? '<div class="scroll-row">' + completed.map(renderTaskCardHtml).join('') + '</div>' :
+      '<div class="empty-state home-empty-state"><div class="empty-state-icon">🏁</div><h3>No completed tasks yet</h3><p>Finish a task and it will appear here.</p></div>') + '</section>';
+  html += '<div class="section-header"><div><div class="section-title">Browse by category</div><div class="section-subtitle">Find tasks that match your goals</div></div></div><div class="category-grid">';
+  (data.categories || []).forEach(function(cat) {
+    html += '<div class="category-tile" onclick="navigate(\'browse\', {category:\'' + escHtml(cat.name) + '\'})">' +
+      '<div class="category-tile-icon">' + (cat.icon || '📋') + '</div><div class="category-tile-name">' + escHtml(cat.name) + '</div><div class="category-tile-count">' + (cat.count || 0) + ' tasks</div></div>';
+  });
+  html += '</div>';
   return html;
 }
-
-function buildHomeSection(tasks, title) {
-  if (!tasks || tasks.length === 0) {
-    return '<div class="empty-state" style="padding:32px"><div class="empty-state-icon">📭</div><h3>Nothing here yet</h3><p>Check another tab or browse all tasks.</p></div>';
+function buildHomeSection(tasks, title, viewAll) {
+  var safeTasks = tasks || [];
+  var action = viewAll || 'browse';
+  if (safeTasks.length === 0) {
+    return '<div class="home-section-header"><div><div class="section-title">' + escHtml(title || 'Tasks') + '</div><div class="section-subtitle">No matching tasks right now</div></div></div>' +
+      '<div class="empty-state home-empty-state"><div class="empty-state-icon">📭</div><h3>Nothing here yet</h3><p>Check another tab or browse all tasks.</p><button class="btn btn-secondary" onclick="navigate(\'' + action + '\')">Browse tasks</button></div>';
   }
-  return '<div class="scroll-row">' + tasks.map(renderTaskCardHtml).join('') + '</div>';
+  return '<div class="home-section-header"><div><div class="section-title">' + escHtml(title || 'Tasks') + '</div><div class="section-subtitle">' + safeTasks.length + ' available</div></div>' +
+    '<button class="section-link" onclick="navigate(\'' + action + '\')">See all</button></div>' +
+    '<div class="scroll-row">' + safeTasks.map(renderTaskCardHtml).join('') + '</div>';
 }
-
 function switchHomeTab(tab) {
   ['foryou','new','closing'].forEach(function(t) {
     var panel = document.getElementById('home-tab-' + t);
@@ -1555,12 +1524,8 @@ function switchHomeTab(tab) {
 }
 
 function buildScrollSection(title, tasks, viewAll) {
-  return '<div class="mb-32"><div class="section-header"><div class="section-title">' + title + '</div>' +
-    '<span class="section-link" onclick="navigate(\'' + viewAll + '\')">See all</span></div>' +
-    '<div class="scroll-row">' + tasks.map(renderTaskCardHtml).join('') + '</div></div>';
+  return buildHomeSection(tasks, title, viewAll);
 }
-
-// changes preserve the active filter and category.
 function renderBrowse(data) {
   var viewEl = document.getElementById('view-browse');
   data = data || APP.state.browseData || {};
