@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch-home:
-    if: !startsWith(github.event.head_commit.message, 'chore: apply Home architecture changes')
+    if: "!startsWith(github.event.head_commit.message, 'chore: apply Home architecture changes')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
