@@ -104,33 +104,57 @@ function readAhtDumpCached() {
   var C = buildColMap(headers);
   var rows = [];
 
+  var C_lower = {};
+  for (var k in C) {
+    C_lower[k.toLowerCase()] = C[k];
+  }
+
+  function getIndex(names) {
+    for (var i = 0; i < names.length; i++) {
+      var n = names[i].toLowerCase();
+      if (C_lower[n] !== undefined) return C_lower[n];
+    }
+    return undefined;
+  }
+
+  var idxMonth = getIndex(['Month', 'MONTH']);
+  var idxLdap = getIndex(['LDAP']);
+  var idxTc = getIndex(['Team Captain / Manager LDAP', 'Team Capitan']);
+  var idxChannel = getIndex(['Channel']);
+  var idxSymptom = getIndex(['Symptom / TUI', 'TUI CHECKER']);
+  var idxChatAht = getIndex(['Chat AHT']);
+  var idxPhoneAht = getIndex(['Phone AHT']);
+  var idxSurveyRate = getIndex(['Survey Offer Rate']);
+  var idxTotalChats = getIndex(['Number of Total Chats', 'Number of total chats']);
+  var idxIncomingPhone = getIndex(['Incoming Phone Calls']);
+
   for (var i = 1; i < raw.length; i++) {
     var row = raw[i];
 
-    var rawMonth = C['Month'] !== undefined ? row[C['Month']] : null;
+    var rawMonth = idxMonth !== undefined ? row[idxMonth] : null;
     var month = parseRowMonth(rawMonth);
     if (!month) continue;
 
     var yearPart = parseInt(month.split('-')[0]);
     if (yearPart !== currentYear) continue;
 
-    var ldap = C['LDAP'] !== undefined ? String(row[C['LDAP']] || '').trim().toLowerCase().split('@')[0] : '';
+    var ldap = idxLdap !== undefined ? String(row[idxLdap] || '').trim().toLowerCase().split('@')[0] : '';
     if (!ldap) continue;
 
-    var tcLdap = (C['Team Captain / Manager LDAP'] !== undefined ? row[C['Team Captain / Manager LDAP']] : row[22]);
+    var tcLdap = (idxTc !== undefined ? row[idxTc] : row[22]);
     tcLdap = String(tcLdap || '').trim().toLowerCase().split('@')[0];
 
     rows.push({
       month: month,
       ldap: ldap,
       tcLdap: tcLdap,
-      channel: C['Channel'] !== undefined ? String(row[C['Channel']] || '').trim().toLowerCase() : '',
-      symptom: C['Symptom / TUI'] !== undefined ? String(row[C['Symptom / TUI']] || '').trim() : String(row[23] || '').trim(),
-      chatAht: safeFloat(C['Chat AHT'] !== undefined ? row[C['Chat AHT']] : null),
-      phoneAht: safeFloat(C['Phone AHT'] !== undefined ? row[C['Phone AHT']] : null),
-      surveyOfferRate: safeFloat(C['Survey Offer Rate'] !== undefined ? row[C['Survey Offer Rate']] : null),
-      totalChats: safeFloat(C['Number of Total Chats'] !== undefined ? row[C['Number of Total Chats']] : null),
-      incomingPhone: safeFloat(C['Incoming Phone Calls'] !== undefined ? row[C['Incoming Phone Calls']] : null)
+      channel: idxChannel !== undefined ? String(row[idxChannel] || '').trim().toLowerCase() : '',
+      symptom: idxSymptom !== undefined ? String(row[idxSymptom] || '').trim() : String(row[23] || '').trim(),
+      chatAht: safeFloat(idxChatAht !== undefined ? row[idxChatAht] : null),
+      phoneAht: safeFloat(idxPhoneAht !== undefined ? row[idxPhoneAht] : null),
+      surveyOfferRate: safeFloat(idxSurveyRate !== undefined ? row[idxSurveyRate] : null),
+      totalChats: safeFloat(idxTotalChats !== undefined ? row[idxTotalChats] : null),
+      incomingPhone: safeFloat(idxIncomingPhone !== undefined ? row[idxIncomingPhone] : null)
     });
   }
 
