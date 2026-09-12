@@ -30,7 +30,7 @@ jobs:
           text = path.read_text(encoding='utf-8')
 
           def replace_function(source, name, replacement):
-              pattern = rf"function {re.escape(name)}\\s*\\([^)]*\\)\\s*\\{{.*?(?=\\nfunction |\\Z)"
+              pattern = rf"function {re.escape(name)}\s*\([^)]*\)\s*\{{.*?(?=\nfunction |\Z)"
               updated, count = re.subn(pattern, replacement.rstrip(), source, count=1, flags=re.S)
               if count != 1:
                   raise SystemExit(f'Could not locate function: {name}')
@@ -38,7 +38,6 @@ jobs:
 
           build_home_html = r'''function buildHomeHtml(data) {
             var html = '';
-
             if (data.featured) {
               var f = data.featured;
               html += '<div class="hero-banner mb-32" onclick="navigate(\'task-detail\', {taskId:\'' + escHtml(f.id) + '\'})">' +
@@ -46,48 +45,34 @@ jobs:
                 '<div class="hero-title">' + escHtml(f.title) + '</div>' +
                 '<div class="hero-desc">' + escHtml(f.description || 'Complete this featured task and earn bonus points.') + '</div>' +
                 '<div class="hero-footer"><div><span class="hero-pts-num">' + (f.points || 0) + '</span> <span class="hero-pts-label">points</span></div>' +
-                '<button class="hero-cta" onclick="event.stopPropagation(); navigate(\'task-detail\', {taskId:\'' + escHtml(f.id) + '\'})">View task →</button></div>' +
-              '</div>';
+                '<button class="hero-cta" onclick="event.stopPropagation(); navigate(\'task-detail\', {taskId:\'' + escHtml(f.id) + '\'})">View task →</button></div></div>';
             }
-
             var sections = [
               { id: 'foryou', label: 'For you', tasks: data.forYou || data.quickWins || [], viewAll: 'browse' },
               { id: 'new', label: 'New this week', tasks: data.newThisWeek || [], viewAll: 'browse' },
               { id: 'closing', label: 'Closing soon', tasks: data.closingSoon || [], viewAll: 'browse' }
             ];
-
             html += '<div class="home-feed-tabs mb-24">';
             sections.forEach(function(section, index) {
               html += '<button id="tab-' + section.id + '" class="home-tab ' + (index === 0 ? 'active' : '') + '" onclick="switchHomeTab(\'' + section.id + '\')">' +
                 escHtml(section.label) + '<span class="home-tab-count">' + section.tasks.length + '</span></button>';
             });
             html += '</div>';
-
             sections.forEach(function(section, index) {
               html += '<section id="panel-' + section.id + '" class="home-feed-panel" style="display:' + (index === 0 ? 'block' : 'none') + '">' +
-                buildHomeSection(section.tasks, section.label, section.viewAll) +
-              '</section>';
+                buildHomeSection(section.tasks, section.label, section.viewAll) + '</section>';
             });
-
             var completed = data.completedTasks || [];
             html += '<section class="home-completed-section mb-32">' +
-              '<div class="section-header"><div><div class="section-title">Completed</div><div class="section-subtitle">Your finished tasks</div></div>' +
-              '<span class="section-count">' + completed.length + '</span></div>' +
+              '<div class="section-header"><div><div class="section-title">Completed</div><div class="section-subtitle">Your finished tasks</div></div><span class="section-count">' + completed.length + '</span></div>' +
               (completed.length ? '<div class="scroll-row">' + completed.map(renderTaskCardHtml).join('') + '</div>' :
-                '<div class="empty-state home-empty-state"><div class="empty-state-icon">🏁</div><h3>No completed tasks yet</h3><p>Finish a task and it will appear here.</p></div>') +
-              '</section>';
-
-            html += '<div class="section-header"><div><div class="section-title">Browse by category</div><div class="section-subtitle">Find tasks that match your goals</div></div></div>' +
-              '<div class="category-grid">';
+                '<div class="empty-state home-empty-state"><div class="empty-state-icon">🏁</div><h3>No completed tasks yet</h3><p>Finish a task and it will appear here.</p></div>') + '</section>';
+            html += '<div class="section-header"><div><div class="section-title">Browse by category</div><div class="section-subtitle">Find tasks that match your goals</div></div></div><div class="category-grid">';
             (data.categories || []).forEach(function(cat) {
               html += '<div class="category-tile" onclick="navigate(\'browse\', {category:\'' + escHtml(cat.name) + '\'})">' +
-                '<div class="category-tile-icon">' + (cat.icon || '📋') + '</div>' +
-                '<div class="category-tile-name">' + escHtml(cat.name) + '</div>' +
-                '<div class="category-tile-count">' + (cat.count || 0) + ' tasks</div>' +
-              '</div>';
+                '<div class="category-tile-icon">' + (cat.icon || '📋') + '</div><div class="category-tile-name">' + escHtml(cat.name) + '</div><div class="category-tile-count">' + (cat.count || 0) + ' tasks</div></div>';
             });
             html += '</div>';
-
             return html;
           }'''
 
@@ -116,26 +101,18 @@ jobs:
             var statusIcon = isCompleted ? '✓' : (isInProgress ? '↻' : '▶');
             var difficulty = task.difficulty || task.level || 'Standard';
             var deadline = task.deadline || task.dueDate || '';
-
             return '<div class="task-card card-elevation-1 home-task-card ' + statusClass + '" onclick="navigate(\'task-detail\', {taskId:\'' + escHtml(task.id) + '\'})" data-task-id="' + escHtml(task.id) + '">' +
               '<div class="home-task-points"><span>' + (task.points || 0) + '</span><small>PTS</small></div>' +
-              '<div class="home-task-body">' +
-                '<div class="home-task-title">' + escHtml(task.title || 'Untitled task') + '</div>' +
-                '<div class="home-task-meta">' +
-                  '<span>' + escHtml(task.category || 'General') + '</span>' +
-                  '<span class="task-difficulty ' + getDifficultyClass(difficulty) + '">' + escHtml(difficulty) + '</span>' +
-                '</div>' +
-                (deadline ? '<div class="home-task-deadline">⏱ ' + escHtml(deadline) + '</div>' : '') +
-                '<div class="home-task-footer"><span class="status-badge ' + statusClass + '">' + statusIcon + ' ' + statusText + '</span></div>' +
-              '</div>' +
-            '</div>';
+              '<div class="home-task-body"><div class="home-task-title">' + escHtml(task.title || 'Untitled task') + '</div>' +
+              '<div class="home-task-meta"><span>' + escHtml(task.category || 'General') + '</span><span class="task-difficulty ' + getDifficultyClass(difficulty) + '">' + escHtml(difficulty) + '</span></div>' +
+              (deadline ? '<div class="home-task-deadline">⏱ ' + escHtml(deadline) + '</div>' : '') +
+              '<div class="home-task-footer"><span class="status-badge ' + statusClass + '">' + statusIcon + ' ' + statusText + '</span></div></div></div>';
           }'''
 
           text = replace_function(text, 'buildHomeHtml', build_home_html)
           text = replace_function(text, 'buildHomeSection', build_home_section)
           text = replace_function(text, 'buildScrollSection', build_scroll_section)
           text = replace_function(text, 'renderTaskCardHtml', render_task_card)
-
           path.write_text(text, encoding='utf-8')
           print('Home architecture patch applied successfully')
           PY
