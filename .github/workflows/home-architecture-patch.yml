@@ -1,0 +1,155 @@
+name: Apply Home architecture patch
+
+on:
+  push:
+    branches:
+      - feature/home-feed-architecture
+
+permissions:
+  contents: write
+
+jobs:
+  patch-home:
+    if: !startsWith(github.event.head_commit.message, 'chore: apply Home architecture changes')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Patch Home functions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('Index.html')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = {
+          'renderTaskCardHtml': r'''function renderTaskCardHtml(task) {
+            var catColor = getCategoryColor(task.category);
+            var deadlineText = task.deadline || 'No deadline';
+            var isUrgent = task.urgency === 'critical';
+            var status = task.agentStatus === 'Completed' ? 'completed' : task.agentStatus === 'In Progress' ? 'in_progress' : 'available';
+            var statusLabel = status === 'completed' ? 'Completed' : status === 'in_progress' ? 'In Progress' : 'Available';
+            var statusIcon = status === 'completed' ? '✓' : status === 'in_progress' ? '⚙' : '🎯';
+            var statusClass = status === 'completed' ? 'status-completed' : status === 'in_progress' ? 'status-inprogress' : 'status-available';
+
+            return '<div class="task-card card-elevation-1" onclick="navigate(\\'task-detail\\', {taskId:\\'' + escHtml(task.id) + '\\'})" data-task-id="' + escHtml(task.id) + '" style="width:280px;min-width:280px">' +
+              '<div class="task-card-points" style="background:' + catColor + '">' +
+                '<div class="task-card-points-value">' + (task.basePoints || 0) + '</div>' +
+                '<div class="task-card-points-label">PTS</div>' +
+              '</div>' +
+              '<div class="task-card-body">' +
+                '<div class="task-card-title">' + escHtml(task.title) + '</div>' +
+                '<div class="task-card-meta">' +
+                  '<span style="color:' + catColor + '">' + escHtml(task.category || 'General') + '</span>' +
+                  '<span class="task-card-separator">•</span>' +
+                  '<span class="task-difficulty ' + getDifficultyClass(task.difficulty) + '">' + escHtml(task.difficulty || 'Easy') + '</span>' +
+                '</div>' +
+                '<div class="task-card-footer">' +
+                  '<div class="task-card-deadline ' + (isUrgent ? 'urgent' : '') + '">' +
+                    '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>' +
+                    escHtml(deadlineText) +
+                  '</div>' +
+                  '<span class="task-status-chip ' + statusClass + '">' + statusIcon + ' ' + statusLabel + '</span>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          }''',
+          'buildHomeHtml': r'''function buildHomeHtml(data) {
+            var html = '';
+
+            if (data.featured && data.featured.length > 0) {
+              var f = data.featured[0];
+              html += '<div class="home-featured" onclick="navigate(\\'task-detail\\',{taskId:\\'' + escHtml(f.id) + '\\'})">' +
+                '<div class="home-featured-copy">' +
+                  '<div class="home-featured-tag">Featured task</div>' +
+                  '<div class="home-featured-title">' + escHtml(f.title) + '</div>' +
+                  '<div class="home-featured-desc">' + escHtml(f.description ? f.description.slice(0,100) + (f.description.length > 100 ? '...' : '') : '') + '</div>' +
+                  '<button class="hero-cta">View task</button>' +
+                '</div>' +
+                '<div class="home-featured-points"><div class="hero-pts-num">' + (f.basePoints || 0) + '</div><div class="hero-pts-label">pts</div></div>' +
+              '</div>';
+            }
+
+            var forYouTasks = (data.forYou && data.forYou.length > 0) ? data.forYou : (data.quickWins || []);
+            var newTasks = data.newThisWeek || [];
+            var closingTasks = data.closingSoon || [];
+            var completedTasks = data.completedTasks || [];
+
+            html += '<div class="home-feed-header">' +
+              '<div><div class="section-title">Your task feed</div><div class="home-feed-subtitle">Pick a task, make progress, and keep the streak going.</div></div>' +
+              '<button class="btn btn-secondary btn-sm" onclick="navigate(\\'browse\\')">Browse all</button>' +
+            '</div>';
+
+            html += '<div class="home-tabs" role="tablist">' +
+              '<div id="tab-foryou" class="home-tab active" onclick="switchHomeTab(\\'foryou\\')">For you <span>' + forYouTasks.length + '</span></div>' +
+              '<div id="tab-new" class="home-tab" onclick="switchHomeTab(\\'new\\')">New this week <span>' + newTasks.length + '</span></div>' +
+              '<div id="tab-closing" class="home-tab" onclick="switchHomeTab(\\'closing\\')">Closing soon <span>' + closingTasks.length + '</span></div>' +
+              '<div id="tab-completed" class="home-tab" onclick="switchHomeTab(\\'completed\\')">Completed <span>' + completedTasks.length + '</span></div>' +
+            '</div>';
+
+            html += '<div id="home-tab-foryou">' + buildHomeSection(forYouTasks, '⚡ For You', 'browse') + '</div>';
+            html += '<div id="home-tab-new" style="display:none">' + buildHomeSection(newTasks, '🆕 New This Week', 'browse') + '</div>';
+            html += '<div id="home-tab-closing" style="display:none">' + buildHomeSection(closingTasks, '⏰ Closing Soon', 'browse') + '</div>';
+            html += '<div id="home-tab-completed" style="display:none">' + buildHomeSection(completedTasks, '✅ Completed', 'browse') + '</div>';
+
+            if (data.categories && data.categories.length > 0) {
+              html += '<div class="home-categories"><div class="section-header"><div><div class="section-title">Browse by Category</div><div class="home-feed-subtitle">Jump straight to the work you want to do.</div></div></div><div class="category-grid">' +
+                data.categories.map(function(c) {
+                  return '<div class="category-tile" onclick="navigate(\\'browse\\',{category:\\'' + escHtml(c.name) + '\\'})">' +
+                    '<div class="category-tile-icon">' + getCategoryIcon(c.name) + '</div>' +
+                    '<div class="category-tile-name">' + escHtml(c.name) + '</div>' +
+                    '<div class="category-tile-count">' + c.count + ' task' + (c.count !== 1 ? 's' : '') + '</div></div>';
+                }).join('') + '</div></div>';
+            }
+
+            if (!html) html = '<div class="empty-state"><div class="empty-state-icon">🎯</div><h3>No tasks available</h3><p>New tasks are posted regularly.</p><button class="btn btn-primary" style="margin-top:16px" onclick="navigate(\\'browse\\')">Browse all tasks</button></div>';
+            return html;
+          }''',
+          'buildHomeSection': r'''function buildHomeSection(tasks, title, viewAll) {
+            var safeTitle = title || 'Tasks';
+            if (!tasks || tasks.length === 0) {
+              return '<div class="home-section mb-24"><div class="section-header"><div><div class="section-title">' + safeTitle + '</div><div class="home-feed-subtitle">Nothing here right now.</div></div>' +
+                (viewAll ? '<button class="section-link" onclick="navigate(\\'' + viewAll + '\\')">See all</button>' : '') +
+                '</div><div class="empty-state" style="padding:28px 16px"><div class="empty-state-icon">📭</div><h3>Nothing here yet</h3><p>Check another section or browse all tasks.</p></div></div>';
+            }
+            return '<div class="home-section mb-24"><div class="section-header"><div><div class="section-title">' + safeTitle + ' <span class="home-section-count">' + tasks.length + '</span></div><div class="home-feed-subtitle">' + (viewAll === 'browse' ? 'Select a task to view details.' : '') + '</div></div>' +
+              (viewAll ? '<button class="section-link" onclick="navigate(\\'' + viewAll + '\\')">See all</button>' : '') +
+              '</div><div class="scroll-row">' + tasks.map(renderTaskCardHtml).join('') + '</div></div>';
+          }''',
+          'switchHomeTab': r'''function switchHomeTab(tab) {
+            ['foryou','new','closing','completed'].forEach(function(t) {
+              var panel = document.getElementById('home-tab-' + t);
+              var tabEl = document.getElementById('tab-' + t);
+              if (!panel || !tabEl) return;
+              var active = t === tab;
+              panel.style.display = active ? 'block' : 'none';
+              tabEl.classList.toggle('active', active);
+            });
+          }''',
+          'buildScrollSection': r'''function buildScrollSection(title, tasks, viewAll) {
+            return buildHomeSection(tasks, title, viewAll);
+          }'''
+          }
+
+          for name, replacement in replacements.items():
+              pattern = rf'function {name}\([^)]*\) \{{.*?\n\}}(?=\nfunction |\n//)'
+              match = re.search(pattern, text, flags=re.S)
+              if not match:
+                  raise SystemExit(f'Could not locate {name}')
+              text = text[:match.start()] + replacement + text[match.end():]
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit Home architecture changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Index.html
+          git diff --cached --check
+          git diff --cached --stat
+          git commit -m "chore: apply Home architecture changes"
+          git push
