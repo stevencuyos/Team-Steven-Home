@@ -8,3 +8,160 @@ body.dark-mode .tier-badge::after, body.dark-mode .badge-icon-wrap::after {
   100% { box-shadow: 0 0 0 0 rgba(1, 135, 95, 0); transform: scale(1); }
 }
 .pulse-animate { animation: claimPulse 0.4s ease-out; }
+
+/* ═══════════════════════════════════════════════
+   HOME FEED POLISH
+   Presentation-only overrides. GAS-safe: no JS/runtime dependencies.
+═══════════════════════════════════════════════ */
+
+/* Task cards: clearer hierarchy + tactile interaction */
+.task-card {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease !important;
+  cursor: pointer;
+  overflow: hidden;
+}
+.task-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: var(--play-green) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.task-card:active {
+  transform: translateY(-1px) !important;
+}
+.task-card:focus-visible,
+.category-tile:focus-visible,
+.section-link:focus-visible {
+  outline: 3px solid var(--play-green-light);
+  outline-offset: 2px;
+}
+
+/* Keep horizontal home rails intentional rather than looking like a clipped grid. */
+.scroll-row {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 3px 3px 12px;
+  margin: 0 -3px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+.scroll-row > .task-card {
+  scroll-snap-align: start;
+}
+.scroll-row::-webkit-scrollbar {
+  height: 5px;
+}
+
+/* Category tiles: more like a dashboard control than plain boxes. */
+.category-tile {
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-color: var(--border) !important;
+  box-shadow: none;
+}
+.category-tile:hover {
+  transform: translateY(-2px) !important;
+  border-color: var(--play-green) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+.category-tile-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 9px;
+  border-radius: 14px;
+  background: var(--play-green-light);
+}
+
+/* Hero banner: preserve the existing inline design while improving depth. */
+.hero-banner {
+  box-shadow: var(--shadow-sm);
+}
+.hero-banner:hover {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* Home tab strip: improve touch targets without changing its existing behavior. */
+#tab-foryou,
+#tab-new,
+#tab-closing {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: color .18s ease, background-color .18s ease;
+}
+#tab-foryou:hover,
+#tab-new:hover,
+#tab-closing:hover {
+  background: var(--surface-2);
+}
+
+/* Prevent long task titles/deadlines from making cards jump in height. */
+.task-card .task-difficulty {
+  white-space: nowrap;
+}
+.task-card .status-badge {
+  white-space: nowrap;
+}
+
+/* Better small-screen task cards. */
+@media (max-width: 768px) {
+  .scroll-row {
+    gap: 10px;
+    padding-bottom: 10px;
+  }
+
+  .scroll-row .task-card {
+    width: min(82vw, 310px) !important;
+    min-width: min(82vw, 310px) !important;
+  }
+
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .category-tile {
+    min-height: 104px;
+    padding: 14px 10px;
+  }
+
+  #tab-foryou,
+  #tab-new,
+  #tab-closing {
+    flex: 1;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .task-card,
+  .category-tile,
+  .hero-banner,
+  #tab-foryou,
+  #tab-new,
+  #tab-closing {
+    transition: none !important;
+  }
+
+  .task-card:hover,
+  .category-tile:hover,
+  .hero-banner:hover {
+    transform: none !important;
+  }
+}
